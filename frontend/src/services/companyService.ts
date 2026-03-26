@@ -11,7 +11,7 @@ import type {
 export const companyService = {
   async getCompanies(params?: {
     search?: string
-    status?: string
+    is_active?: boolean
     page?: number
     page_size?: number
   }): Promise<PaginatedResponse<Company>> {
@@ -19,7 +19,7 @@ export const companyService = {
     return data
   },
 
-  async getCompany(id: number): Promise<Company> {
+  async getCompany(id: string): Promise<Company> {
     const { data } = await api.get(`/companies/${id}`)
     return data
   },
@@ -29,29 +29,29 @@ export const companyService = {
     return data
   },
 
-  async updateCompany(id: number, payload: Partial<CompanyFormData>): Promise<Company> {
+  async updateCompany(id: string, payload: Partial<CompanyFormData>): Promise<Company> {
     const { data } = await api.put(`/companies/${id}`, payload)
     return data
   },
 
-  async deleteCompany(id: number): Promise<void> {
+  async deleteCompany(id: string): Promise<void> {
     await api.delete(`/companies/${id}`)
   },
 
-  async getCompanyStats(id: number): Promise<CompanyStats> {
+  async getCompanyStats(id: string): Promise<CompanyStats> {
     const { data } = await api.get(`/companies/${id}/stats`)
     return data
   },
 
   async getCompanyDocuments(
-    id: number,
-    params?: { folder_id?: number; document_type?: string; status?: string; page?: number }
+    id: string,
+    params?: { folder_id?: string; document_type?: string; status?: string; page?: number }
   ): Promise<PaginatedResponse<Document>> {
     const { data } = await api.get(`/companies/${id}/documents`, { params })
     return data
   },
 
-  async getCompanyFolders(id: number): Promise<FolderTree[]> {
+  async getCompanyFolders(id: string): Promise<FolderTree[]> {
     const { data } = await api.get(`/companies/${id}/folders`)
     return data
   },

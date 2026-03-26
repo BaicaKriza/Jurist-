@@ -28,30 +28,32 @@ export interface TokenResponse {
 
 // ─── Company ──────────────────────────────────────────────────────────────────
 
-export type CompanyStatus = 'active' | 'inactive' | 'suspended'
-
 export interface Company {
-  id: number
+  id: string
   name: string
   nipt: string
-  administrator: string
+  legal_form?: string
+  administrator_name?: string
   address?: string
   phone?: string
   email?: string
-  status: CompanyStatus
+  is_active: boolean
   notes?: string
+  document_count?: number
+  expired_count?: number
   created_at: string
   updated_at: string
 }
 
 export interface CompanyStats {
-  company_id: number
+  company_id: string
+  company_name: string
   total_documents: number
-  active_certificates: number
+  active_documents: number
+  expired_documents: number
+  review_required: number
   expiring_soon: number
-  expired: number
   total_folders: number
-  last_sync?: string
 }
 
 // ─── Folder ───────────────────────────────────────────────────────────────────
@@ -289,11 +291,12 @@ export interface DashboardStats {
 export interface CompanyFormData {
   name: string
   nipt: string
-  administrator: string
+  legal_form?: string
+  administrator_name?: string
   address?: string
   phone?: string
   email?: string
-  status: CompanyStatus
+  is_active: boolean
   notes?: string
 }
 

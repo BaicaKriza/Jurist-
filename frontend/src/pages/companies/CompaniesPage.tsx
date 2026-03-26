@@ -38,30 +38,25 @@ import {
 import { LoadingSpinner } from '@/components/common/LoadingSpinner'
 import { companyService } from '@/services/companyService'
 import { useToast } from '@/hooks/useToast'
-import type { Company, CompanyFormData, CompanyStatus } from '@/types'
+import type { Company, CompanyFormData } from '@/types'
 
 const companySchema = z.object({
   name: z.string().min(2, 'Emri duhet të jetë të paktën 2 karaktere'),
   nipt: z.string().min(3, 'NIPT-i është i detyrueshëm'),
-  administrator: z.string().min(2, 'Administratori është i detyrueshëm'),
+  administrator_name: z.string().optional(),
   address: z.string().optional(),
   phone: z.string().optional(),
   email: z.string().email('Email i pavlefshëm').optional().or(z.literal('')),
-  status: z.enum(['active', 'inactive', 'suspended'] as const),
+  is_active: z.boolean(),
   notes: z.string().optional(),
 })
 
 type CompanyFormValues = z.infer<typeof companySchema>
 
-function statusBadge(status: CompanyStatus) {
-  switch (status) {
-    case 'active':
-      return <Badge variant="success">Aktiv</Badge>
-    case 'inactive':
-      return <Badge variant="secondary">Joaktiv</Badge>
-    case 'suspended':
-      return <Badge variant="destructive">Pezulluar</Badge>
-  }
+function statusBadge(is_active: boolean) {
+  return is_active
+    ? <Badge variant="success">Aktiv</Badge>
+    : <Badge variant="secondary">Joaktiv</Badge>
 }
 
 interface CompanyFormDialogProps {
@@ -87,17 +82,17 @@ function CompanyFormDialog({ open, onClose, editCompany }: CompanyFormDialogProp
       ? {
           name: editCompany.name,
           nipt: editCompany.nipt,
-          administrator: editCompany.administrator,
+          administrator_name: editCompany.administrator_name ?? '',
           address: editCompany.address ?? '',
           phone: editCompany.phone ?? '',
           email: editCompany.email ?? '',
-          status: editCompany.status,
+          is_active: editCompany.is_active,
           notes: editCompany.notes ?? '',
         }
-      : { status: 'active' },
+      : { is_active: true },
   })
 
-  const statusValue = watch('status')
+  const isActiveValue = watch('is_active')
 
   const createMutation = useMutation({
     mutationFn: (data: CompanyFormData) => companyService.createCompany(data),
@@ -130,6 +125,7 @@ function CompanyFormDialog({ open, onClose, editCompany }: CompanyFormDialogProp
     const payload: CompanyFormData = {
       ...values,
       email: values.email || undefined,
+      administrator_name: values.administrator_name || undefined,
     }
     if (editCompany) {
       updateMutation.mutate(payload)
@@ -159,26 +155,24 @@ function CompanyFormDialog({ open, onClose, editCompany }: CompanyFormDialogProp
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="status">Statusi *</Label>
+              <Label htmlFor="is_active">Statusi</Label>
               <Select
-                value={statusValue}
-                onValueChange={(v) => setValue('status', v as CompanyStatus)}
+                value={String(isActiveValue)}
+                onValueChange={(v) => setValue('is_active', v === 'true')}
               >
-                <SelectTrigger id="status">
+                <SelectTrigger id="is_active">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="active">Aktiv</SelectItem>
-                  <SelectItem value="inactive">Joaktiv</SelectItem>
-                  <SelectItem value="suspended">Pezulluar</SelectItem>
+                  <SelectItem value="true">Aktiv</SelectItem>
+                  <SelectItem value="false">Joaktiv</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div className="col-span-2 space-y-1.5">
-              <Label htmlFor="administrator">Administratori *</Label>
-              <Input id="administrator" {...register('administrator')} placeholder="Emri i administratorit" />
-              {errors.administrator && <p className="text-xs text-red-600">{errors.administrator.message}</p>}
+              <Label htmlFor="administrator_name">Administratori</Label>
+              <Input id="administrator_name" {...register('administrator_name')} placeholder="Emri i administratorit" />
             </div>
 
             <div className="space-y-1.5">
@@ -231,7 +225,7 @@ export default function CompaniesPage() {
   })
 
   const deleteMutation = useMutation({
-    mutationFn: (id: number) => companyService.deleteCompany(id),
+    mutationFn: (id: string) => companyService.deleteCompany(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['companies'] })
       success('Kompania u fshi', 'Kompania u fshi me sukses.')
@@ -317,7 +311,7 @@ export default function CompaniesPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-1 shrink-0 ml-2">
-                    {statusBadge(company.status)}
+                    {statusBadge(company.is_active)}
                     <Button
                       variant="ghost"
                       size="icon-sm"
@@ -339,10 +333,12 @@ export default function CompaniesPage() {
                 </div>
 
                 <div className="space-y-1 text-xs text-gray-500 mb-4">
-                  <p>
-                    <span className="font-medium text-gray-700">Administrator: </span>
-                    {company.administrator}
-                  </p>
+                  {company.administrator_name && (
+                    <p>
+                      <span className="font-medium text-gray-700">Administrator: </span>
+                      {company.administrator_name}
+                    </p>
+                  )}
                   {company.email && (
                     <p>
                       <span className="font-medium text-gray-700">Email: </span>

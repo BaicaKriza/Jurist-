@@ -94,7 +94,7 @@ def get_dashboard_stats(
         if d.expiry_date:
             if d.expiry_date < today:
                 status = "expired"
-            elif d.expiry_date <= thirty_days:
+            elif d.expiry_date <= thirty_days and d.expiry_date >= today:
                 status = "expiring_soon"
         return {
             "id": str(d.id),

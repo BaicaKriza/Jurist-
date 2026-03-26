@@ -3,17 +3,12 @@ import type { User } from '@/types'
 
 export const authService = {
   async login(email: string, password: string) {
-    const formData = new URLSearchParams()
-    formData.append('username', email)
-    formData.append('password', password)
-    const { data } = await api.post('/auth/login', formData, {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    })
+    const { data } = await api.post('/auth/login', { email, password })
     return data
   },
 
-  async logout() {
-    await api.post('/auth/logout')
+  logout() {
+    localStorage.removeItem('access_token')
   },
 
   async getMe(): Promise<User> {
@@ -22,7 +17,7 @@ export const authService = {
   },
 
   async changePassword(currentPassword: string, newPassword: string) {
-    const { data } = await api.post('/auth/change-password', {
+    const { data } = await api.patch('/auth/me/password', {
       current_password: currentPassword,
       new_password: newPassword,
     })

@@ -292,7 +292,7 @@ export default function CompanyDetailPage() {
     queryFn: () =>
       companyService.getCompanyDocuments(companyId, {
         folder_id: selectedFolderId,
-        page_size: 100,
+        page: 1,
       }),
     enabled: !!companyId,
   })
@@ -300,7 +300,7 @@ export default function CompanyDetailPage() {
   const { data: expiringDocs } = useQuery({
     queryKey: ['company-docs', companyId, 'expiring'],
     queryFn: () =>
-      companyService.getCompanyDocuments(companyId, { status: 'expiring_soon', page_size: 50 }),
+      companyService.getCompanyDocuments(companyId, { status: 'expiring_soon', page: 1 }),
     enabled: !!companyId,
   })
 

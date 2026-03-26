@@ -1,75 +1,92 @@
 import api from '@/lib/api'
 import type {
   Procedure,
+  ProcedureCreate,
   ProcedureFilters,
+  ProcedureDocument,
   PaginatedResponse,
   ProcedureAnalysis,
+  RequiredDocumentItem,
+  RequiredDocumentCreate,
   MatchingReport,
-  RetrievalGuide,
+  MatchingResult,
 } from '@/types'
 
 export const procedureService = {
+  // ── Procedures ────────────────────────────────────────────────────────────
+
   async getProcedures(filters?: ProcedureFilters): Promise<PaginatedResponse<Procedure>> {
     const { data } = await api.get('/procedures', { params: filters })
     return data
   },
 
-  async getProcedure(id: number): Promise<Procedure> {
+  async getProcedure(id: string): Promise<Procedure> {
     const { data } = await api.get(`/procedures/${id}`)
     return data
   },
 
-  async syncProcedures(): Promise<{ synced: number; message: string }> {
-    const { data } = await api.post('/procedures/sync')
+  async createProcedure(payload: ProcedureCreate): Promise<Procedure> {
+    const { data } = await api.post('/procedures', payload)
     return data
   },
 
-  async analyzeProcedure(id: number): Promise<ProcedureAnalysis> {
+  async syncProcedures(params?: {
+    source?: string
+    max_pages?: number
+    force_refresh?: boolean
+  }): Promise<{ synced_count: number; updated_count: number; errors: number; message: string }> {
+    const { data } = await api.post('/procedures/sync', params ?? {})
+    return data
+  },
+
+  async analyzeProcedure(id: string): Promise<ProcedureAnalysis> {
     const { data } = await api.post(`/procedures/${id}/analyze`)
     return data
   },
 
-  async getAnalysis(procedureId: number): Promise<ProcedureAnalysis> {
-    const { data } = await api.get(`/procedures/${procedureId}/analysis`)
+  async getProcedureDocuments(id: string): Promise<ProcedureDocument[]> {
+    const { data } = await api.get(`/procedures/${id}/documents`)
     return data
   },
 
-  async downloadProcedureDocuments(id: number): Promise<{ downloaded: number }> {
-    const { data } = await api.post(`/procedures/${id}/download-documents`)
+  // ── Requirements ──────────────────────────────────────────────────────────
+
+  async getRequiredDocuments(procedureId: string): Promise<RequiredDocumentItem[]> {
+    const { data } = await api.get(`/analyses/procedures/${procedureId}/required-documents`)
     return data
   },
 
-  async runMatching(procedureId: number, companyId: number): Promise<MatchingReport> {
-    const { data } = await api.post(`/procedures/${procedureId}/match`, {
+  async addRequiredDocument(
+    procedureId: string,
+    payload: RequiredDocumentCreate
+  ): Promise<RequiredDocumentItem> {
+    const { data } = await api.post(`/procedures/${procedureId}/requirements`, payload)
+    return data
+  },
+
+  async deleteRequiredDocument(procedureId: string, requirementId: string): Promise<void> {
+    await api.delete(`/procedures/${procedureId}/requirements/${requirementId}`)
+  },
+
+  // ── Analysis ──────────────────────────────────────────────────────────────
+
+  async getProcedureAnalysis(procedureId: string): Promise<ProcedureAnalysis> {
+    const { data } = await api.get(`/analyses/procedures/${procedureId}/analysis`)
+    return data
+  },
+
+  // ── Matching ──────────────────────────────────────────────────────────────
+
+  async runMatching(procedureId: string, companyId: string): Promise<MatchingResult[]> {
+    const { data } = await api.post('/matching/run', {
+      procedure_id: procedureId,
       company_id: companyId,
     })
     return data
   },
 
-  async getMatchingReport(procedureId: number, companyId: number): Promise<MatchingReport> {
-    const { data } = await api.get(`/procedures/${procedureId}/match/${companyId}`)
+  async getMatchingReport(procedureId: string, companyId: string): Promise<MatchingReport> {
+    const { data } = await api.get(`/matching/report/${procedureId}/${companyId}`)
     return data
-  },
-
-  async getRetrievalGuides(): Promise<RetrievalGuide[]> {
-    const { data } = await api.get('/retrieval-guides')
-    return data
-  },
-
-  async createRetrievalGuide(payload: Partial<RetrievalGuide>): Promise<RetrievalGuide> {
-    const { data } = await api.post('/retrieval-guides', payload)
-    return data
-  },
-
-  async updateRetrievalGuide(
-    id: number,
-    payload: Partial<RetrievalGuide>
-  ): Promise<RetrievalGuide> {
-    const { data } = await api.put(`/retrieval-guides/${id}`, payload)
-    return data
-  },
-
-  async deleteRetrievalGuide(id: number): Promise<void> {
-    await api.delete(`/retrieval-guides/${id}`)
   },
 }

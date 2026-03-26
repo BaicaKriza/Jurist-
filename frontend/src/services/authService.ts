@@ -1,31 +1,21 @@
 import api from '@/lib/api'
-import type { User } from '@/types'
+import type { User, TokenResponse } from '@/types'
 
 export const authService = {
-  async login(email: string, password: string) {
-    const formData = new URLSearchParams()
-    formData.append('username', email)
-    formData.append('password', password)
-    const { data } = await api.post('/auth/login', formData, {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    })
+  async login(email: string, password: string): Promise<TokenResponse> {
+    const { data } = await api.post<TokenResponse>('/auth/login', { email, password })
     return data
-  },
-
-  async logout() {
-    await api.post('/auth/logout')
   },
 
   async getMe(): Promise<User> {
-    const { data } = await api.get('/auth/me')
+    const { data } = await api.get<User>('/auth/me')
     return data
   },
 
-  async changePassword(currentPassword: string, newPassword: string) {
-    const { data } = await api.post('/auth/change-password', {
+  async changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    await api.patch('/auth/me/password', {
       current_password: currentPassword,
       new_password: newPassword,
     })
-    return data
   },
 }

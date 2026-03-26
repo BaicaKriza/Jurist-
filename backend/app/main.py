@@ -74,6 +74,32 @@ app.include_router(admin.router, prefix=API_PREFIX)
 
 
 # ---------------------------------------------------------------------------
+# Local storage file-serving endpoint (fallback when MinIO is unavailable)
+# ---------------------------------------------------------------------------
+import urllib.parse as _urlparse
+from fastapi import Response as _Response
+from fastapi.responses import FileResponse as _FileResponse
+import os as _os
+
+@app.get("/api/storage/local/{object_path:path}", tags=["storage"], include_in_schema=False)
+def serve_local_file(object_path: str):
+    """Serve a file from local storage when MinIO is not available."""
+    from app.core.storage import _LOCAL_STORAGE_ROOT
+    decoded = _urlparse.unquote(object_path)
+    file_path = _LOCAL_STORAGE_ROOT / decoded
+    if not file_path.exists() or not file_path.is_file():
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="File not found")
+    # Prevent path traversal
+    try:
+        file_path.resolve().relative_to(_LOCAL_STORAGE_ROOT.resolve())
+    except ValueError:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="Invalid path")
+    return _FileResponse(str(file_path))
+
+
+# ---------------------------------------------------------------------------
 # Utility endpoints
 # ---------------------------------------------------------------------------
 

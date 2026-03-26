@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { User } from '@/types'
-import api from '@/lib/api'
+import { authService } from '@/services/authService'
 
 interface AuthState {
   user: User | null
@@ -11,11 +11,12 @@ interface AuthState {
   login: (email: string, password: string) => Promise<void>
   logout: () => void
   setUser: (user: User) => void
+  fetchMe: () => Promise<void>
 }
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       user: null,
       token: null,
       isAuthenticated: false,
@@ -24,18 +25,14 @@ export const useAuthStore = create<AuthState>()(
       login: async (email: string, password: string) => {
         set({ isLoading: true })
         try {
-          const formData = new URLSearchParams()
-          formData.append('username', email)
-          formData.append('password', password)
+          const tokenResponse = await authService.login(email, password)
+          localStorage.setItem('access_token', tokenResponse.access_token)
 
-          const response = await api.post('/auth/login', formData, {
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          })
+          // Fetch user profile
+          const user = await authService.getMe()
 
-          const { access_token, user } = response.data
-          localStorage.setItem('access_token', access_token)
           set({
-            token: access_token,
+            token: tokenResponse.access_token,
             user,
             isAuthenticated: true,
             isLoading: false,
@@ -53,6 +50,16 @@ export const useAuthStore = create<AuthState>()(
 
       setUser: (user: User) => {
         set({ user })
+      },
+
+      fetchMe: async () => {
+        try {
+          const user = await authService.getMe()
+          set({ user, isAuthenticated: true })
+        } catch {
+          set({ user: null, token: null, isAuthenticated: false })
+          localStorage.removeItem('access_token')
+        }
       },
     }),
     {

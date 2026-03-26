@@ -1,16 +1,16 @@
 // ─── User & Auth ──────────────────────────────────────────────────────────────
 
-export type UserRole = 'admin' | 'manager' | 'viewer'
+export type UserRole = 'admin' | 'manager' | 'viewer' | 'operator'
 
 export interface User {
-  id: number
+  id: string
   email: string
   full_name: string
-  role: UserRole
+  roles: UserRole[]
   is_active: boolean
+  is_superadmin: boolean
   created_at: string
   updated_at: string
-  last_login?: string
 }
 
 export interface LoginRequest {
@@ -20,45 +20,58 @@ export interface LoginRequest {
 
 export interface TokenResponse {
   access_token: string
+  refresh_token: string
   token_type: string
-  user: User
+  expires_in: number
 }
 
 // ─── Company ──────────────────────────────────────────────────────────────────
 
-export type CompanyStatus = 'active' | 'inactive' | 'suspended'
-
 export interface Company {
-  id: number
+  id: string
   name: string
   nipt: string
-  administrator: string
+  legal_form?: string
+  administrator_name?: string
   address?: string
   phone?: string
   email?: string
-  status: CompanyStatus
+  is_active: boolean
   notes?: string
   created_at: string
   updated_at: string
 }
 
+export interface CompanyListItem {
+  id: string
+  name: string
+  nipt: string
+  legal_form?: string
+  administrator_name?: string
+  is_active: boolean
+  created_at: string
+  document_count: number
+  expired_count: number
+}
+
 export interface CompanyStats {
-  company_id: number
+  company_id: string
+  company_name: string
   total_documents: number
-  active_certificates: number
+  active_documents: number
+  expired_documents: number
+  review_required: number
   expiring_soon: number
-  expired: number
   total_folders: number
-  last_sync?: string
 }
 
 // ─── Folder ───────────────────────────────────────────────────────────────────
 
 export interface Folder {
-  id: number
-  company_id: number
+  id: string
+  company_id: string
   name: string
-  parent_id?: number
+  parent_id?: string
   path: string
   document_count: number
   children?: Folder[]
@@ -71,202 +84,204 @@ export interface FolderTree extends Folder {
 
 // ─── Document ─────────────────────────────────────────────────────────────────
 
-export type DocumentStatus = 'valid' | 'expiring_soon' | 'expired' | 'pending' | 'invalid'
-export type DocumentType =
-  | 'certificate'
-  | 'license'
-  | 'permit'
-  | 'registration'
-  | 'financial'
-  | 'legal'
-  | 'technical'
-  | 'other'
+// Backend statuses: ACTIVE, EXPIRED, ARCHIVED, REVIEW_REQUIRED
+export type DocumentStatus = 'ACTIVE' | 'EXPIRED' | 'ARCHIVED' | 'REVIEW_REQUIRED'
 
 export interface Document {
-  id: number
-  company_id: number
-  folder_id?: number
+  id: string
+  company_id: string
+  folder_id?: string
   title: string
-  document_type: DocumentType
+  doc_type?: string
   status: DocumentStatus
   file_name: string
   file_size: number
-  file_path: string
   mime_type: string
   issuer?: string
   issue_date?: string
   expiry_date?: string
-  reference_number?: string
-  notes?: string
-  tags?: string[]
-  uploaded_by: number
+  reference_no?: string
+  checksum?: string
+  version_no: number
+  ai_summary?: string
+  metadata_json?: Record<string, unknown>
+  created_by?: string
   created_at: string
   updated_at: string
-  company?: Company
-  folder?: Folder
+  download_url?: string
+}
+
+export interface DocumentUploadResponse {
+  id: string
+  title: string
+  file_name: string
+  file_size: number
+  mime_type: string
+  status: DocumentStatus
 }
 
 // ─── Procedure ────────────────────────────────────────────────────────────────
 
-export type ProcedureStatus = 'open' | 'closed' | 'cancelled' | 'awarded' | 'pending'
-export type ProcedureType =
-  | 'open_tender'
-  | 'restricted_tender'
-  | 'negotiated'
-  | 'direct'
-  | 'framework'
-  | 'other'
-
-export type AnalysisStatus = 'pending' | 'processing' | 'completed' | 'failed'
-
-export interface ProcedureDocument {
-  id: number
-  procedure_id: number
-  file_name: string
-  file_url: string
-  file_type: string
-  file_size: number
-  downloaded: boolean
-  downloaded_at?: string
-}
+export type ProcedureStatus = 'OPEN' | 'CLOSED' | 'AWARDED' | 'CANCELLED' | 'UNKNOWN'
+export type ProcedureSource = 'CONTRACT_NOTICE' | 'SMALL_VALUE'
 
 export interface Procedure {
-  id: number
-  reference_number: string
-  title: string
-  contracting_authority: string
-  procedure_type: ProcedureType
-  estimated_value?: number
-  currency: string
-  deadline: string
-  publication_date: string
-  status: ProcedureStatus
-  description?: string
-  cpv_codes?: string[]
+  id: string
+  source_name: ProcedureSource
   source_url?: string
-  documents?: ProcedureDocument[]
-  analysis_status: AnalysisStatus
+  reference_no?: string
+  notice_no?: string
+  authority_name?: string
+  object_description?: string
+  procedure_type?: string
+  contract_type?: string
+  cpv_code?: string
+  fund_limit?: number
+  currency?: string
+  publication_date?: string
+  opening_date?: string
+  closing_date?: string
+  status: ProcedureStatus
+  document_count: number
   created_at: string
   updated_at: string
+}
+
+export interface ProcedureCreate {
+  source_name: ProcedureSource
+  reference_no?: string
+  notice_no?: string
+  authority_name: string
+  object_description: string
+  procedure_type?: string
+  contract_type?: string
+  cpv_code?: string
+  fund_limit?: number
+  currency?: string
+  publication_date?: string
+  closing_date?: string
+  status?: ProcedureStatus
+  source_url?: string
+}
+
+export interface ProcedureDocument {
+  id: string
+  procedure_id: string
+  title?: string
+  document_url?: string
+  file_name?: string
+  mime_type?: string
+  checksum?: string
+  ai_summary?: string
+  created_at: string
+}
+
+// ─── Requirements ─────────────────────────────────────────────────────────────
+
+export type DocumentCategory = 'ADMINISTRATIVE' | 'TECHNICAL' | 'FINANCIAL' | 'PROFESSIONAL'
+
+export interface RequiredDocumentItem {
+  id: string
+  procedure_id: string
+  name: string
+  category: DocumentCategory
+  description?: string
+  mandatory: boolean
+  issuer_type?: string
+  source_hint?: string
+  validity_rule?: string
+}
+
+export interface RequiredDocumentCreate {
+  name: string
+  category: DocumentCategory
+  description?: string
+  mandatory: boolean
+  issuer_type?: string
+  source_hint?: string
+  validity_rule?: string
 }
 
 // ─── Analysis ─────────────────────────────────────────────────────────────────
 
-export type MatchingStatus =
-  | 'FOUND_VALID'
-  | 'FOUND_EXPIRING'
-  | 'FOUND_EXPIRED'
-  | 'MISSING'
-  | 'NOT_APPLICABLE'
-
-export interface RequiredDocumentItem {
-  id: number
-  analysis_id: number
-  document_name: string
-  document_description: string
-  legal_basis?: string
-  is_mandatory: boolean
-  category: string
-  notes?: string
-}
+export type RiskLevel = 'LOW' | 'MEDIUM' | 'HIGH'
 
 export interface ProcedureAnalysis {
-  id: number
-  procedure_id: number
-  summary: string
-  legal_requirements: string
-  technical_requirements: string
-  financial_requirements: string
-  risk_assessment: string
-  recommendation: string
-  required_documents: RequiredDocumentItem[]
-  analyzed_at: string
-  model_used: string
-  procedure?: Procedure
+  id: string
+  procedure_id: string
+  analysis_type: string
+  summary?: string
+  legal_notes?: string
+  technical_notes?: string
+  financial_notes?: string
+  risk_level?: RiskLevel
+  recommended_action?: string
+  ai_output_json?: Record<string, unknown>
+  created_at: string
 }
 
 // ─── Matching ─────────────────────────────────────────────────────────────────
 
+export type MatchStatus =
+  | 'FOUND_VALID'
+  | 'FOUND_EXPIRED'
+  | 'FOUND_PARTIAL'
+  | 'MISSING'
+  | 'REVIEW_REQUIRED'
+
 export interface MatchingResult {
-  id: number
-  report_id: number
-  required_document_id: number
-  required_document: RequiredDocumentItem
-  matched_document_id?: number
-  matched_document?: Document
-  status: MatchingStatus
-  confidence_score?: number
+  id: string
+  procedure_id: string
+  company_id: string
+  required_document_item_id: string
+  matched_document_id?: string
+  match_status: MatchStatus
+  confidence_score: number
   notes?: string
+  created_at: string
+  required_document_name?: string
+  required_document_category?: string
+  matched_document_title?: string
+}
+
+export interface MatchingReportItem {
+  required_document_id: string
+  required_document_name: string
+  category: DocumentCategory
+  mandatory: boolean
+  match_status: MatchStatus
+  confidence_score: number
+  matched_document_id?: string
+  matched_document_title?: string
+  notes?: string
+  retrieval_guide?: string
 }
 
 export interface MatchingReport {
-  id: number
-  procedure_id: number
-  company_id: number
-  company: Company
-  procedure: Procedure
-  results: MatchingResult[]
+  procedure_id: string
+  company_id: string
+  company_name: string
+  procedure_reference?: string
+  authority_name?: string
   total_required: number
-  total_found: number
-  total_missing: number
-  total_expiring: number
-  total_expired: number
-  created_at: string
-  updated_at: string
-}
-
-export interface RetrievalGuide {
-  id: number
-  document_name: string
-  issuing_institution: string
-  website_url?: string
-  required_documents: string
-  procedure_steps: string
-  estimated_days: number
-  cost?: string
-  notes?: string
-}
-
-// ─── Audit Log ────────────────────────────────────────────────────────────────
-
-export type AuditAction =
-  | 'create'
-  | 'update'
-  | 'delete'
-  | 'upload'
-  | 'download'
-  | 'login'
-  | 'logout'
-  | 'sync'
-  | 'analyze'
-
-export interface AuditLog {
-  id: number
-  user_id: number
-  user?: User
-  company_id?: number
-  action: AuditAction
-  resource_type: string
-  resource_id?: number
-  description: string
-  ip_address?: string
-  created_at: string
+  found_valid: number
+  found_expired: number
+  found_partial: number
+  missing: number
+  review_required: number
+  readiness_score: number
+  items: MatchingReportItem[]
+  generated_at: string
 }
 
 // ─── API Responses ────────────────────────────────────────────────────────────
-
-export interface ApiResponse<T> {
-  data: T
-  message?: string
-  success: boolean
-}
 
 export interface PaginatedResponse<T> {
   items: T[]
   total: number
   page: number
   page_size: number
-  total_pages: number
+  pages: number
 }
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
@@ -275,11 +290,8 @@ export interface DashboardStats {
   active_companies: number
   total_documents: number
   expiring_soon: number
-  new_procedures_today: number
   expired_documents: number
-  pending_analyses: number
-  recent_expiring_documents: Document[]
-  recent_procedures: Procedure[]
+  total_procedures: number
 }
 
 // ─── Form Types ───────────────────────────────────────────────────────────────
@@ -287,56 +299,51 @@ export interface DashboardStats {
 export interface CompanyFormData {
   name: string
   nipt: string
-  administrator: string
+  legal_form?: string
+  administrator_name?: string
   address?: string
   phone?: string
   email?: string
-  status: CompanyStatus
+  is_active: boolean
   notes?: string
 }
 
 export interface DocumentUploadData {
-  company_id: number
-  folder_id?: number
+  company_id: string
+  folder_id?: string
   title: string
-  document_type: DocumentType
+  doc_type?: string
   issuer?: string
   issue_date?: string
   expiry_date?: string
-  reference_number?: string
-  notes?: string
+  reference_no?: string
   file: File
 }
 
 export interface UserFormData {
   email: string
   full_name: string
-  role: UserRole
+  role_names: UserRole[]
   password?: string
   is_active: boolean
+  is_superadmin: boolean
 }
 
 // ─── Filter Types ─────────────────────────────────────────────────────────────
 
 export interface DocumentFilters {
-  company_id?: number
-  document_type?: DocumentType
+  company_id?: string
   status?: DocumentStatus
-  folder_id?: number
+  folder_id?: string
   search?: string
-  expiry_from?: string
-  expiry_to?: string
   page?: number
   page_size?: number
 }
 
 export interface ProcedureFilters {
-  procedure_type?: ProcedureType
-  authority?: string
+  source_name?: ProcedureSource
+  authority_name?: string
   status?: ProcedureStatus
-  analysis_status?: AnalysisStatus
-  date_from?: string
-  date_to?: string
   search?: string
   page?: number
   page_size?: number

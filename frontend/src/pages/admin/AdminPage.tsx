@@ -43,7 +43,7 @@ import type { User, UserFormData, UserRole } from '@/types'
 
 async function getUsers(): Promise<User[]> {
   const { data } = await api.get('/admin/users')
-  return data
+  return data.items ?? data
 }
 
 async function createUser(payload: UserFormData): Promise<User> {
@@ -51,12 +51,12 @@ async function createUser(payload: UserFormData): Promise<User> {
   return data
 }
 
-async function updateUser(id: number, payload: Partial<UserFormData>): Promise<User> {
+async function updateUser(id: string, payload: Partial<UserFormData>): Promise<User> {
   const { data } = await api.put(`/admin/users/${id}`, payload)
   return data
 }
 
-async function deleteUser(id: number): Promise<void> {
+async function deleteUser(id: string): Promise<void> {
   await api.delete(`/admin/users/${id}`)
 }
 
@@ -269,7 +269,7 @@ export default function AdminPage() {
   })
 
   const deleteMutation = useMutation({
-    mutationFn: (id: number) => deleteUser(id),
+    mutationFn: (id: string) => deleteUser(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-users'] })
       success('Përdoruesi u fshi', 'Llogaria u fshi me sukses.')

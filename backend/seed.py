@@ -1,5 +1,8 @@
 """
-Seed script — krijon superadmin user dhe rolet bazë nëse nuk ekzistojnë.
+Seed script — krijon rolet bazë dhe superadmin nëse nuk ekzistojnë.
+Email/password merren nga env vars BOOTSTRAP_EMAIL / BOOTSTRAP_PASSWORD,
+ose defaultet: admin@jurist.al / Admin123!
+
 Ekzekuto: python seed.py
 """
 import sys
@@ -11,6 +14,11 @@ from app.models.user import User
 from app.models.role import Role, UserRole
 from app.core.security import hash_password
 import uuid
+
+
+BOOTSTRAP_EMAIL = os.getenv("BOOTSTRAP_EMAIL", "admin@jurist.al")
+BOOTSTRAP_PASSWORD = os.getenv("BOOTSTRAP_PASSWORD", "Admin123!")
+BOOTSTRAP_NAME = os.getenv("BOOTSTRAP_NAME", "Administrator")
 
 
 def seed():
@@ -37,30 +45,28 @@ def seed():
             roles[name] = role
         db.flush()
 
-        # --- Superadmin user ---
-        admin_email = "admin@jurist.al"
-        existing = db.query(User).filter(User.email == admin_email).first()
+        # --- Bootstrap superadmin ---
+        existing = db.query(User).filter(User.email == BOOTSTRAP_EMAIL).first()
         if not existing:
             admin = User(
                 id=str(uuid.uuid4()),
-                full_name="Administrator",
-                email=admin_email,
-                password_hash=hash_password("Admin123!"),
+                full_name=BOOTSTRAP_NAME,
+                email=BOOTSTRAP_EMAIL,
+                password_hash=hash_password(BOOTSTRAP_PASSWORD),
                 is_active=True,
                 is_superadmin=True,
             )
             db.add(admin)
             db.flush()
             db.add(UserRole(id=str(uuid.uuid4()), user_id=admin.id, role_id=roles["admin"].id))
-            print(f"  ✓ Superadmin krijuar: {admin_email} / Admin123!")
+            print(f"  ✓ Superadmin krijuar: {BOOTSTRAP_EMAIL}")
         else:
-            print(f"  · Superadmin ekziston: {admin_email}")
+            print(f"  · Superadmin ekziston: {BOOTSTRAP_EMAIL}")
 
         db.commit()
         print("\n✅ Seed u kompletua me sukses!")
-        print("\n  Kredencialet e hyrjes:")
-        print("  Email   : admin@jurist.al")
-        print("  Password: Admin123!\n")
+        print(f"\n  Email   : {BOOTSTRAP_EMAIL}")
+        print(f"  Password: {BOOTSTRAP_PASSWORD}\n")
 
     except Exception as e:
         db.rollback()

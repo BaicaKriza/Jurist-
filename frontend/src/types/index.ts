@@ -3,11 +3,13 @@
 export type UserRole = 'admin' | 'manager' | 'viewer'
 
 export interface User {
-  id: number
+  id: string
   email: string
   full_name: string
   role: UserRole
   is_active: boolean
+  is_superadmin: boolean
+  roles: string[]
   created_at: string
   updated_at: string
   last_login?: string

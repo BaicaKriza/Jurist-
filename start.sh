@@ -85,8 +85,9 @@ if [ ! -d "node_modules" ]; then
   npm install --silent 2>/dev/null
 fi
 
-# Mbyll ndonjë process të vjetër
+# Mbyll ndonjë process të vjetër në port 5173
 pkill -f "vite" 2>/dev/null || true
+fuser -k 5173/tcp 2>/dev/null || true
 sleep 1
 
 npm run dev > /tmp/jurist-frontend.log 2>&1 &

@@ -66,7 +66,7 @@ const userSchema = z.object({
   email: z.string().email('Email i pavlefshëm'),
   full_name: z.string().min(2, 'Emri duhet të paktën 2 karaktere'),
   role: z.enum(['admin', 'manager', 'viewer'] as const),
-  password: z.string().min(8, 'Fjalëkalimi duhet të paktën 8 karaktere').optional().or(z.literal('')),
+  password: z.string().min(1, 'Fjalëkalimi nuk mund të jetë bosh').optional().or(z.literal('')),
   is_active: z.boolean(),
 })
 

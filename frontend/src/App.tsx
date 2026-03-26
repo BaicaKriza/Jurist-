@@ -1,21 +1,21 @@
-import React from 'react'
+import React, { Suspense, lazy } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
 import { PageLoader } from '@/components/common/LoadingSpinner'
 import Layout from '@/components/layout/Layout'
 
-// Pages
-import LoginPage from '@/pages/auth/LoginPage'
-import DashboardPage from '@/pages/dashboard/DashboardPage'
-import CompaniesPage from '@/pages/companies/CompaniesPage'
-import CompanyDetailPage from '@/pages/companies/CompanyDetailPage'
-import DocumentsPage from '@/pages/documents/DocumentsPage'
-import ProceduresPage from '@/pages/procedures/ProceduresPage'
-import ProcedureDetailPage from '@/pages/procedures/ProcedureDetailPage'
-import AnalysesPage from '@/pages/analyses/AnalysesPage'
-import MissingDocsPage from '@/pages/missing-docs/MissingDocsPage'
-import AdminPage from '@/pages/admin/AdminPage'
-import SettingsPage from '@/pages/settings/SettingsPage'
+// Lazy-loaded pages — each page loads only when first visited (code splitting)
+const LoginPage = lazy(() => import('@/pages/auth/LoginPage'))
+const DashboardPage = lazy(() => import('@/pages/dashboard/DashboardPage'))
+const CompaniesPage = lazy(() => import('@/pages/companies/CompaniesPage'))
+const CompanyDetailPage = lazy(() => import('@/pages/companies/CompanyDetailPage'))
+const DocumentsPage = lazy(() => import('@/pages/documents/DocumentsPage'))
+const ProceduresPage = lazy(() => import('@/pages/procedures/ProceduresPage'))
+const ProcedureDetailPage = lazy(() => import('@/pages/procedures/ProcedureDetailPage'))
+const AnalysesPage = lazy(() => import('@/pages/analyses/AnalysesPage'))
+const MissingDocsPage = lazy(() => import('@/pages/missing-docs/MissingDocsPage'))
+const AdminPage = lazy(() => import('@/pages/admin/AdminPage'))
+const SettingsPage = lazy(() => import('@/pages/settings/SettingsPage'))
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth()
@@ -44,6 +44,7 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   return (
+    <Suspense fallback={<PageLoader />}>
     <Routes>
       <Route
         path="/login"
@@ -83,5 +84,6 @@ export default function App() {
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </Suspense>
   )
 }

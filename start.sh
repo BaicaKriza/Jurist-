@@ -1,6 +1,5 @@
 #!/bin/bash
 # Jurist Platform — startup script për Codespace / local dev
-set -e
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 
@@ -15,17 +14,19 @@ echo "▶ Duke nisur PostgreSQL..."
 if pg_isready -h localhost -q 2>/dev/null; then
   echo "  · PostgreSQL tashmë po ecën"
 else
-  sudo pg_ctlcluster 16 main start 2>/dev/null || \
   sudo service postgresql start 2>/dev/null || \
-  pg_ctl start -D /var/lib/postgresql/16/main 2>/dev/null || \
-  echo "  ⚠ Nuk mund të niset PostgreSQL automatikisht — nise manualisht"
+  sudo pg_ctlcluster 16 main start 2>/dev/null || \
+  echo "  ⚠ PostgreSQL nuk u nis automatikisht"
 
   sleep 2
-  pg_isready -h localhost -q && echo "  ✓ PostgreSQL u nis" || echo "  ⚠ PostgreSQL ende nuk përgjigjet"
+  if pg_isready -h localhost -q 2>/dev/null; then
+    echo "  ✓ PostgreSQL u nis"
+  else
+    echo "  ⚠ PostgreSQL ende nuk përgjigjet — vazhdo gjithsesi"
+  fi
 fi
 
 # Krijo user dhe DB nëse nuk ekzistojnë
-echo "  Duke konfiguruar databazën..."
 sudo -u postgres psql -c "CREATE USER jurist WITH PASSWORD 'jurist';" 2>/dev/null || true
 sudo -u postgres psql -c "CREATE DATABASE jurist OWNER jurist;" 2>/dev/null || true
 sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE jurist TO jurist;" 2>/dev/null || true
@@ -42,56 +43,64 @@ if [ ! -f ".env" ]; then
   echo "  ✓ .env krijuar nga .env.dev"
 fi
 
-# Instalo dependencies nëse mungojnë
-if ! python3 -c "import fastapi" 2>/dev/null; then
-  echo "  Installing Python dependencies..."
-  pip install -r requirements.txt -q
-fi
+# Instalo gjithmonë dependencies (kap ndryshimet në requirements.txt)
+echo "  Duke instaluar Python dependencies..."
+pip install -r requirements.txt -q 2>/dev/null
+
+# Mbyll ndonjë process të vjetër
+pkill -f "uvicorn app.main" 2>/dev/null || true
+sleep 1
 
 # Nis backend në background
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload > /tmp/jurist-backend.log 2>&1 &
+uvicorn app.main:app --host 0.0.0.0 --port 8000 > /tmp/jurist-backend.log 2>&1 &
 BACKEND_PID=$!
 echo "  ✓ Backend po ecën (PID $BACKEND_PID)"
 
 # Prit backend të ngrihet
 echo "  Duke pritur backend..."
-for i in $(seq 1 25); do
+for i in $(seq 1 30); do
   if curl -s http://localhost:8000/health > /dev/null 2>&1; then
     echo "  ✓ Backend gati!"
     break
   fi
   sleep 1
-  if [ $i -eq 25 ]; then
+  if [ $i -eq 30 ]; then
     echo "  ⚠ Backend u vonua — shiko /tmp/jurist-backend.log"
+    cat /tmp/jurist-backend.log | tail -5
   fi
 done
 
 # Seed — krijon admin user nëse nuk ekziston
 echo "  Duke inicializuar të dhënat..."
-python3 seed.py || echo "  ⚠ Seed dështoi — shiko loget"
+python3 seed.py 2>/dev/null | grep -E "✓|✅|❌|·" || true
 
 # ─── 3. Frontend ─────────────────────────────────────────────────────────────
 echo ""
 echo "▶ Duke nisur frontend..."
 cd "$ROOT/frontend"
 
+# Instalo gjithmonë (kap ndryshimet në package.json)
 if [ ! -d "node_modules" ]; then
-  echo "  Installing Node.js dependencies..."
-  npm install --silent
+  echo "  Duke instaluar Node.js dependencies..."
+  npm install --silent 2>/dev/null
 fi
+
+# Mbyll ndonjë process të vjetër
+pkill -f "vite" 2>/dev/null || true
+sleep 1
 
 npm run dev > /tmp/jurist-frontend.log 2>&1 &
 FRONTEND_PID=$!
 echo "  ✓ Frontend po ecën (PID $FRONTEND_PID)"
 
-sleep 3
+sleep 4
 
 # ─── Done ────────────────────────────────────────────────────────────────────
 echo ""
 echo "╔══════════════════════════════════════════════════════════╗"
 echo "║  ✅ Jurist Pro është gati!                               ║"
 echo "║                                                          ║"
-echo "║  Frontend  →  http://localhost:5173                      ║"
+echo "║  Frontend  →  porto 5173 (hap nga Ports tab)            ║"
 echo "║  Backend   →  http://localhost:8000                      ║"
 echo "║  API Docs  →  http://localhost:8000/docs                 ║"
 echo "║                                                          ║"

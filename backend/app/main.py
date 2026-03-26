@@ -59,7 +59,7 @@ app.add_middleware(
 # ---------------------------------------------------------------------------
 # Routers
 # ---------------------------------------------------------------------------
-from app.api.routes import auth, companies, folders, documents, procedures, analyses, matching, admin  # noqa: E402
+from app.api.routes import auth, companies, folders, documents, procedures, analyses, matching, admin, dashboard  # noqa: E402
 
 API_PREFIX = "/api"
 
@@ -71,6 +71,7 @@ app.include_router(procedures.router, prefix=API_PREFIX)
 app.include_router(analyses.router, prefix=API_PREFIX)
 app.include_router(matching.router, prefix=API_PREFIX)
 app.include_router(admin.router, prefix=API_PREFIX)
+app.include_router(dashboard.router, prefix=API_PREFIX)
 
 
 # ---------------------------------------------------------------------------

@@ -39,7 +39,7 @@ export default function Sidebar() {
   const location = useLocation()
 
   const visibleItems = navItems.filter(
-    (item) => !item.adminOnly || user?.role === 'admin'
+    (item) => !item.adminOnly || user?.is_superadmin || user?.roles?.includes('admin')
   )
 
   return (

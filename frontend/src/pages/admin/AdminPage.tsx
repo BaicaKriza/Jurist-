@@ -7,15 +7,13 @@ import {
   ShieldCheck,
   Users,
   UserCheck,
-  UserX,
   Search,
   X,
 } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { format, parseISO } from 'date-fns'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -37,35 +35,50 @@ import {
 import { LoadingSpinner } from '@/components/common/LoadingSpinner'
 import api from '@/lib/api'
 import { useToast } from '@/hooks/useToast'
-import type { User, UserFormData, UserRole } from '@/types'
+import type { User, UserRole } from '@/types'
 
 // ---- API calls ----
 
 async function getUsers(): Promise<User[]> {
-  const { data } = await api.get('/admin/users')
-  return data
+  const { data } = await api.get('/admin/users', { params: { page_size: 200 } })
+  return data.items ?? data
 }
 
-async function createUser(payload: UserFormData): Promise<User> {
+async function createUser(payload: {
+  email: string
+  full_name: string
+  role_names: UserRole[]
+  password: string
+  is_active: boolean
+  is_superadmin: boolean
+}): Promise<User> {
   const { data } = await api.post('/admin/users', payload)
   return data
 }
 
-async function updateUser(id: number, payload: Partial<UserFormData>): Promise<User> {
-  const { data } = await api.put(`/admin/users/${id}`, payload)
+async function updateUser(id: string, payload: {
+  email?: string
+  full_name?: string
+  role_names?: UserRole[]
+  password?: string
+  is_active?: boolean
+}): Promise<User> {
+  const { data } = await api.patch(`/admin/users/${id}`, payload)
   return data
 }
 
-async function deleteUser(id: number): Promise<void> {
+async function deleteUser(id: string): Promise<void> {
   await api.delete(`/admin/users/${id}`)
 }
 
 // ---- Form schema ----
 
+const ROLES: UserRole[] = ['admin', 'manager', 'viewer', 'operator']
+
 const userSchema = z.object({
   email: z.string().email('Email i pavlefshëm'),
   full_name: z.string().min(2, 'Emri duhet të paktën 2 karaktere'),
-  role: z.enum(['admin', 'manager', 'viewer'] as const),
+  role: z.enum(['admin', 'manager', 'viewer', 'operator'] as const),
   password: z.string().min(8, 'Fjalëkalimi duhet të paktën 8 karaktere').optional().or(z.literal('')),
   is_active: z.boolean(),
 })
@@ -76,6 +89,7 @@ const ROLE_LABELS: Record<UserRole, string> = {
   admin: 'Administrator',
   manager: 'Menaxher',
   viewer: 'Shikues',
+  operator: 'Operator',
 }
 
 function roleBadge(role: UserRole) {
@@ -84,7 +98,9 @@ function roleBadge(role: UserRole) {
       return <Badge variant="destructive">Administrator</Badge>
     case 'manager':
       return <Badge variant="info">Menaxher</Badge>
-    case 'viewer':
+    case 'operator':
+      return <Badge variant="warning">Operator</Badge>
+    default:
       return <Badge variant="secondary">Shikues</Badge>
   }
 }
@@ -101,6 +117,8 @@ function UserFormDialog({ open, onClose, editUser }: UserFormDialogProps) {
   const queryClient = useQueryClient()
   const { success, error } = useToast()
 
+  const primaryRole = editUser?.roles?.[0] ?? 'viewer'
+
   const {
     register,
     handleSubmit,
@@ -114,7 +132,7 @@ function UserFormDialog({ open, onClose, editUser }: UserFormDialogProps) {
       ? {
           email: editUser.email,
           full_name: editUser.full_name,
-          role: editUser.role,
+          role: primaryRole,
           password: '',
           is_active: editUser.is_active,
         }
@@ -125,7 +143,15 @@ function UserFormDialog({ open, onClose, editUser }: UserFormDialogProps) {
   const isActiveValue = watch('is_active')
 
   const createMutation = useMutation({
-    mutationFn: (data: UserFormData) => createUser(data),
+    mutationFn: (data: UserFormValues) =>
+      createUser({
+        email: data.email,
+        full_name: data.full_name,
+        role_names: [data.role],
+        password: data.password!,
+        is_active: data.is_active,
+        is_superadmin: false,
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-users'] })
       success('Përdoruesi u krijua', 'Llogaria e re u krijua me sukses.')
@@ -138,7 +164,14 @@ function UserFormDialog({ open, onClose, editUser }: UserFormDialogProps) {
   })
 
   const updateMutation = useMutation({
-    mutationFn: (data: Partial<UserFormData>) => updateUser(editUser!.id, data),
+    mutationFn: (data: UserFormValues) =>
+      updateUser(editUser!.id, {
+        email: data.email,
+        full_name: data.full_name,
+        role_names: [data.role],
+        is_active: data.is_active,
+        password: data.password || undefined,
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-users'] })
       success('Përditësuar', 'Të dhënat e përdoruesit u ruajtën.')
@@ -152,50 +185,34 @@ function UserFormDialog({ open, onClose, editUser }: UserFormDialogProps) {
   const isSubmitting = createMutation.isPending || updateMutation.isPending
 
   function onSubmit(values: UserFormValues) {
-    const payload: UserFormData = {
-      email: values.email,
-      full_name: values.full_name,
-      role: values.role,
-      is_active: values.is_active,
-      password: values.password || undefined,
-    }
-
     if (editUser) {
-      updateMutation.mutate(payload)
+      updateMutation.mutate(values)
     } else {
-      createMutation.mutate(payload)
+      createMutation.mutate(values)
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose() }}>
-      <DialogContent className="sm:max-w-md">
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>
-            {editUser ? 'Edito Përdoruesin' : 'Shto Përdorues të Ri'}
-          </DialogTitle>
+          <DialogTitle>{editUser ? 'Edito Përdoruesin' : 'Shto Përdorues'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 mt-2">
           <div className="space-y-1.5">
             <Label htmlFor="full_name">Emri i Plotë *</Label>
-            <Input id="full_name" {...register('full_name')} placeholder="Emri i plotë" />
-            {errors.full_name && (
-              <p className="text-xs text-red-600">{errors.full_name.message}</p>
-            )}
+            <Input id="full_name" {...register('full_name')} placeholder="Emri Mbiemri" />
+            {errors.full_name && <p className="text-xs text-red-600">{errors.full_name.message}</p>}
           </div>
 
           <div className="space-y-1.5">
             <Label htmlFor="email">Email *</Label>
-            <Input id="email" type="email" {...register('email')} placeholder="email@shembull.al" />
-            {errors.email && (
-              <p className="text-xs text-red-600">{errors.email.message}</p>
-            )}
+            <Input id="email" type="email" {...register('email')} placeholder="email@kompania.al" />
+            {errors.email && <p className="text-xs text-red-600">{errors.email.message}</p>}
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="password">
-              Fjalëkalimi {editUser ? '(lini bosh për të mos ndryshuar)' : '*'}
-            </Label>
+            <Label htmlFor="password">{editUser ? 'Fjalëkalimi i ri (opsional)' : 'Fjalëkalimi *'}</Label>
             <Input
               id="password"
               type="password"
@@ -215,9 +232,9 @@ function UserFormDialog({ open, onClose, editUser }: UserFormDialogProps) {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="admin">Administrator</SelectItem>
-                  <SelectItem value="manager">Menaxher</SelectItem>
-                  <SelectItem value="viewer">Shikues</SelectItem>
+                  {ROLES.map((r) => (
+                    <SelectItem key={r} value={r}>{ROLE_LABELS[r]}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -269,13 +286,13 @@ export default function AdminPage() {
   })
 
   const deleteMutation = useMutation({
-    mutationFn: (id: number) => deleteUser(id),
+    mutationFn: (id: string) => deleteUser(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-users'] })
-      success('Përdoruesi u fshi', 'Llogaria u fshi me sukses.')
+      success('Përdoruesi u çaktivizua', 'Llogaria u çaktivizua me sukses.')
     },
     onError: (err: any) => {
-      error('Gabim', err?.response?.data?.detail ?? 'Fshirja dështoi.')
+      error('Gabim', err?.response?.data?.detail ?? 'Veprimi dështoi.')
     },
   })
 
@@ -287,7 +304,7 @@ export default function AdminPage() {
   )
 
   const activeCount = (users ?? []).filter((u) => u.is_active).length
-  const adminCount = (users ?? []).filter((u) => u.role === 'admin').length
+  const adminCount = (users ?? []).filter((u) => u.roles?.includes('admin')).length
 
   return (
     <div className="space-y-6">
@@ -308,7 +325,7 @@ export default function AdminPage() {
         <Card>
           <CardContent className="p-4 flex items-center gap-3">
             <div className="h-9 w-9 rounded-lg bg-blue-100 flex items-center justify-center">
-              <Users className="h-4.5 w-4.5 text-blue-600" />
+              <Users className="h-5 w-5 text-blue-600" />
             </div>
             <div>
               <p className="text-xs text-gray-500">Gjithsej</p>
@@ -319,7 +336,7 @@ export default function AdminPage() {
         <Card>
           <CardContent className="p-4 flex items-center gap-3">
             <div className="h-9 w-9 rounded-lg bg-green-100 flex items-center justify-center">
-              <UserCheck className="h-4.5 w-4.5 text-green-600" />
+              <UserCheck className="h-5 w-5 text-green-600" />
             </div>
             <div>
               <p className="text-xs text-gray-500">Aktivë</p>
@@ -330,7 +347,7 @@ export default function AdminPage() {
         <Card>
           <CardContent className="p-4 flex items-center gap-3">
             <div className="h-9 w-9 rounded-lg bg-red-100 flex items-center justify-center">
-              <ShieldCheck className="h-4.5 w-4.5 text-red-600" />
+              <ShieldCheck className="h-5 w-5 text-red-600" />
             </div>
             <div>
               <p className="text-xs text-gray-500">Adminë</p>
@@ -379,7 +396,6 @@ export default function AdminPage() {
                   <th className="text-left py-3 px-3 font-medium text-gray-600">Email</th>
                   <th className="text-left py-3 px-3 font-medium text-gray-600">Roli</th>
                   <th className="text-left py-3 px-3 font-medium text-gray-600">Statusi</th>
-                  <th className="text-left py-3 px-3 font-medium text-gray-600">Kyçje e fundit</th>
                   <th className="py-3 px-3"></th>
                 </tr>
               </thead>
@@ -402,18 +418,17 @@ export default function AdminPage() {
                       </div>
                     </td>
                     <td className="py-3 px-3 text-gray-600">{user.email}</td>
-                    <td className="py-3 px-3">{roleBadge(user.role)}</td>
+                    <td className="py-3 px-3">
+                      {user.is_superadmin
+                        ? <Badge variant="destructive">Superadmin</Badge>
+                        : roleBadge(user.roles?.[0] ?? 'viewer')}
+                    </td>
                     <td className="py-3 px-3">
                       {user.is_active ? (
                         <Badge variant="success">Aktiv</Badge>
                       ) : (
                         <Badge variant="secondary">Joaktiv</Badge>
                       )}
-                    </td>
-                    <td className="py-3 px-3 text-gray-500 text-xs">
-                      {user.last_login
-                        ? format(parseISO(user.last_login), 'dd MMM yyyy HH:mm')
-                        : 'Kurrë'}
                     </td>
                     <td className="py-3 px-3">
                       <div className="flex items-center gap-1">
@@ -430,11 +445,11 @@ export default function AdminPage() {
                           size="icon-sm"
                           className="text-red-500 hover:text-red-700"
                           onClick={() => {
-                            if (window.confirm(`A doni të fshini "${user.full_name}"?`)) {
+                            if (window.confirm(`A doni të çaktivizoni "${user.full_name}"?`)) {
                               deleteMutation.mutate(user.id)
                             }
                           }}
-                          title="Fshi"
+                          title="Çaktivizo"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>

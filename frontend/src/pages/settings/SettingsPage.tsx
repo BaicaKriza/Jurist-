@@ -211,9 +211,9 @@ export default function SettingsPage() {
                     <div>
                       <p className="text-gray-500 font-medium">Roli</p>
                       <div className="mt-0.5">
-                        {user.role === 'admin' ? (
+                        {user.is_superadmin || user.roles?.includes('admin') ? (
                           <Badge variant="destructive">Administrator</Badge>
-                        ) : user.role === 'manager' ? (
+                        ) : user.roles?.includes('manager') ? (
                           <Badge variant="info">Menaxher</Badge>
                         ) : (
                           <Badge variant="secondary">Shikues</Badge>

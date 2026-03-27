@@ -63,7 +63,7 @@ export default function Layout() {
                 <p className="text-sm font-medium text-gray-900 leading-none">
                   {user?.full_name}
                 </p>
-                <p className="text-xs text-gray-500 mt-0.5 capitalize">{user?.role}</p>
+                <p className="text-xs text-gray-500 mt-0.5 capitalize">{user?.is_superadmin ? 'superadmin' : (user?.roles?.[0] ?? 'viewer')}</p>
               </div>
               <div className="h-8 w-8 rounded-full bg-blue-600 flex items-center justify-center shrink-0">
                 <span className="text-white text-xs font-semibold">

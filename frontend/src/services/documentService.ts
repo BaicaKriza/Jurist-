@@ -49,7 +49,7 @@ export const documentService = {
     await api.delete(`/documents/${id}`)
   },
 
-  async getDownloadUrl(id: string): Promise<string> {
+  getDownloadUrl(id: string): string {
     // Returns redirect – just return the URL to open directly
     return `${api.defaults.baseURL}/documents/${id}/download`
   },

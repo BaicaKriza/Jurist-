@@ -31,7 +31,7 @@ function SuperAdminRoute({ children }: { children: React.ReactNode }) {
 
   if (isLoading) return <PageLoader />
   if (!isAuthenticated) return <Navigate to="/login" replace />
-  if (user?.role !== 'admin') return <Navigate to="/" replace />
+  if (!user?.is_superadmin && !user?.roles?.includes('admin')) return <Navigate to="/" replace />
 
   return <>{children}</>
 }

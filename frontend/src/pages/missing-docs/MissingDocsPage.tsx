@@ -218,13 +218,13 @@ export default function MissingDocsPage() {
                 <p className="text-xs text-gray-500 mb-1">Gatishmëria</p>
                 <div className="flex items-end gap-2 mb-2">
                   <span className="text-3xl font-bold text-gray-900">
-                    {Math.round(report.readiness_score * 100)}%
+                    {Math.round(report.readiness_score)}%
                   </span>
                   <span className="text-xs text-gray-400 mb-1">
                     ({report.found_valid}/{report.total_required} valid)
                   </span>
                 </div>
-                <Progress value={Math.round(report.readiness_score * 100)} className="h-2" />
+                <Progress value={Math.round(report.readiness_score)} className="h-2" />
               </CardContent>
             </Card>
 

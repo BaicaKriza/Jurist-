@@ -5,17 +5,16 @@ import {
   Search,
   RefreshCw,
   ExternalLink,
-  Filter,
   X,
   ChevronRight,
   Calendar,
   Building,
   DollarSign,
   BarChart2,
-  Clock,
+  Plus,
 } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -26,70 +25,133 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
 import { LoadingSpinner } from '@/components/common/LoadingSpinner'
 import { procedureService } from '@/services/procedureService'
 import { useToast } from '@/hooks/useToast'
-import type { ProcedureFilters, ProcedureStatus, ProcedureType, AnalysisStatus } from '@/types'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
+import type { ProcedureStatus, ProcedureFilters } from '@/types'
 
 const STATUS_LABELS: Record<ProcedureStatus, string> = {
-  open: 'Hapur',
-  closed: 'Mbyllur',
-  cancelled: 'Anuluar',
-  awarded: 'Dhënë',
-  pending: 'Në pritje',
-}
-
-const TYPE_LABELS: Record<ProcedureType, string> = {
-  open_tender: 'Procedurë e hapur',
-  restricted_tender: 'Procedurë e kufizuar',
-  negotiated: 'Me negocim',
-  direct: 'Direkte',
-  framework: 'Kornizë',
-  other: 'Tjetër',
-}
-
-const ANALYSIS_LABELS: Record<AnalysisStatus, string> = {
-  pending: 'Pa analizë',
-  processing: 'Duke analizuar',
-  completed: 'Analizuar',
-  failed: 'Dështoi',
+  OPEN: 'Hapur',
+  CLOSED: 'Mbyllur',
+  AWARDED: 'Dhënë',
+  CANCELLED: 'Anuluar',
+  UNKNOWN: 'I panjohur',
 }
 
 function statusBadge(status: ProcedureStatus) {
   switch (status) {
-    case 'open':
+    case 'OPEN':
       return <Badge variant="success">Hapur</Badge>
-    case 'closed':
+    case 'CLOSED':
       return <Badge variant="secondary">Mbyllur</Badge>
-    case 'awarded':
+    case 'AWARDED':
       return <Badge variant="info">Dhënë</Badge>
-    case 'cancelled':
+    case 'CANCELLED':
       return <Badge variant="destructive">Anuluar</Badge>
-    case 'pending':
-      return <Badge variant="warning">Në pritje</Badge>
     default:
       return <Badge variant="secondary">{status}</Badge>
   }
 }
 
-function analysisBadge(status: AnalysisStatus) {
-  switch (status) {
-    case 'completed':
-      return <Badge variant="success">Analizuar</Badge>
-    case 'processing':
-      return <Badge variant="info">Duke u analizuar</Badge>
-    case 'pending':
-      return <Badge variant="secondary">Pa analizë</Badge>
-    case 'failed':
-      return <Badge variant="destructive">Dështoi</Badge>
-    default:
-      return null
-  }
-}
-
-function formatCurrency(value?: number, currency = 'ALL') {
+function formatCurrency(value?: number | null, currency = 'ALL') {
   if (!value) return '—'
   return new Intl.NumberFormat('sq-AL', { style: 'currency', currency, maximumFractionDigits: 0 }).format(value)
+}
+
+const createSchema = z.object({
+  authority_name: z.string().min(2, 'Autoriteti kërkohet'),
+  object_description: z.string().min(2, 'Përshkrimi kërkohet'),
+  reference_no: z.string().optional(),
+  procedure_type: z.string().optional(),
+  fund_limit: z.coerce.number().optional(),
+  closing_date: z.string().optional(),
+})
+type CreateForm = z.infer<typeof createSchema>
+
+function CreateProcedureDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const queryClient = useQueryClient()
+  const { success, error } = useToast()
+  const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<CreateForm>({
+    resolver: zodResolver(createSchema),
+  })
+
+  const mutation = useMutation({
+    mutationFn: (d: CreateForm) => procedureService.createProcedure({
+      source_name: 'CONTRACT_NOTICE',
+      authority_name: d.authority_name,
+      object_description: d.object_description,
+      reference_no: d.reference_no || undefined,
+      procedure_type: d.procedure_type || undefined,
+      fund_limit: d.fund_limit || undefined,
+      closing_date: d.closing_date || undefined,
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['procedures'] })
+      success('Procedura u krijua', 'Procedura u shtua me sukses.')
+      reset()
+      onClose()
+    },
+    onError: (err: any) => {
+      error('Gabim', err?.response?.data?.detail ?? 'Krijimi dështoi.')
+    },
+  })
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) { reset(); onClose() } }}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Procedurë e Re</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit((d) => mutation.mutate(d))} className="space-y-4 mt-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="authority_name">Autoriteti Kontraktues *</Label>
+            <Input id="authority_name" {...register('authority_name')} placeholder="Emri i autoritetit" />
+            {errors.authority_name && <p className="text-xs text-red-500">{errors.authority_name.message}</p>}
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="object_description">Përshkrimi i Objektit *</Label>
+            <Input id="object_description" {...register('object_description')} placeholder="Objekti i prokurimit" />
+            {errors.object_description && <p className="text-xs text-red-500">{errors.object_description.message}</p>}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="reference_no">Nr. Referimi</Label>
+              <Input id="reference_no" {...register('reference_no')} placeholder="REF-..." />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="procedure_type">Lloji</Label>
+              <Input id="procedure_type" {...register('procedure_type')} placeholder="open_tender..." />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="fund_limit">Vlera (ALL)</Label>
+              <Input id="fund_limit" type="number" {...register('fund_limit')} placeholder="0" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="closing_date">Afati</Label>
+              <Input id="closing_date" type="date" {...register('closing_date')} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => { reset(); onClose() }}>Anulo</Button>
+            <Button type="submit" disabled={isSubmitting || mutation.isPending}>Krijo</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
 }
 
 const PAGE_SIZE = 15
@@ -97,17 +159,14 @@ const PAGE_SIZE = 15
 export default function ProceduresPage() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
-  const [typeFilter, setTypeFilter] = useState('all')
-  const [analysisFilter, setAnalysisFilter] = useState('all')
   const [page, setPage] = useState(1)
+  const [createOpen, setCreateOpen] = useState(false)
   const queryClient = useQueryClient()
   const { success, error } = useToast()
 
   const filters: ProcedureFilters = {
     search: search || undefined,
     status: statusFilter !== 'all' ? (statusFilter as ProcedureStatus) : undefined,
-    procedure_type: typeFilter !== 'all' ? (typeFilter as ProcedureType) : undefined,
-    analysis_status: analysisFilter !== 'all' ? (analysisFilter as AnalysisStatus) : undefined,
     page,
     page_size: PAGE_SIZE,
   }
@@ -122,25 +181,16 @@ export default function ProceduresPage() {
     mutationFn: () => procedureService.syncProcedures(),
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['procedures'] })
-      success('Sinkronizim i suksesshëm', `U sinkronizuan ${result.synced} procedura.`)
+      success('Sinkronizim i suksesshëm', `U sinkronizuan ${result.synced_count} procedura.`)
     },
     onError: (err: any) => {
       error('Gabim', err?.response?.data?.detail ?? 'Sinkronizimi dështoi.')
     },
   })
 
-  function resetFilters() {
-    setSearch('')
-    setStatusFilter('all')
-    setTypeFilter('all')
-    setAnalysisFilter('all')
-    setPage(1)
-  }
-
-  const hasActiveFilters =
-    search || statusFilter !== 'all' || typeFilter !== 'all' || analysisFilter !== 'all'
+  const hasActiveFilters = search || statusFilter !== 'all'
   const procedures = data?.items ?? []
-  const totalPages = data?.total_pages ?? 1
+  const totalPages = data?.pages ?? 1
 
   return (
     <div className="space-y-6">
@@ -148,18 +198,22 @@ export default function ProceduresPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Procedurat APP</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            {data?.total ?? 0} procedura gjithsej
-          </p>
+          <p className="text-sm text-gray-500 mt-1">{data?.total ?? 0} procedura gjithsej</p>
         </div>
-        <Button
-          variant="outline"
-          onClick={() => syncMutation.mutate()}
-          loading={syncMutation.isPending}
-        >
-          <RefreshCw className={`h-4 w-4 mr-2 ${syncMutation.isPending ? 'animate-spin' : ''}`} />
-          Sinkronizo me APP
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setCreateOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Procedurë e Re
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => syncMutation.mutate()}
+            loading={syncMutation.isPending}
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${syncMutation.isPending ? 'animate-spin' : ''}`} />
+            Sinkronizo me APP
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -182,38 +236,14 @@ export default function ProceduresPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Të gjitha</SelectItem>
-                {Object.entries(STATUS_LABELS).map(([k, v]) => (
-                  <SelectItem key={k} value={k}>{v}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select value={typeFilter} onValueChange={(v) => { setTypeFilter(v); setPage(1) }}>
-              <SelectTrigger className="w-52">
-                <SelectValue placeholder="Lloji" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Të gjitha llojet</SelectItem>
-                {Object.entries(TYPE_LABELS).map(([k, v]) => (
-                  <SelectItem key={k} value={k}>{v}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select value={analysisFilter} onValueChange={(v) => { setAnalysisFilter(v); setPage(1) }}>
-              <SelectTrigger className="w-44">
-                <SelectValue placeholder="Analiza" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Të gjitha</SelectItem>
-                {Object.entries(ANALYSIS_LABELS).map(([k, v]) => (
+                {(Object.entries(STATUS_LABELS) as [ProcedureStatus, string][]).map(([k, v]) => (
                   <SelectItem key={k} value={k}>{v}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
 
             {hasActiveFilters && (
-              <Button variant="outline" size="sm" onClick={resetFilters} className="shrink-0">
+              <Button variant="outline" size="sm" onClick={() => { setSearch(''); setStatusFilter('all'); setPage(1) }}>
                 <X className="h-4 w-4 mr-1.5" />
                 Pastro
               </Button>
@@ -233,7 +263,7 @@ export default function ProceduresPage() {
             <Search className="h-12 w-12 mb-3 text-gray-300" />
             <p className="text-sm font-medium">Nuk u gjetën procedura</p>
             {hasActiveFilters && (
-              <Button variant="link" size="sm" onClick={resetFilters} className="mt-2">
+              <Button variant="link" size="sm" onClick={() => { setSearch(''); setStatusFilter('all') }} className="mt-2">
                 Pastro filtrat
               </Button>
             )}
@@ -248,32 +278,39 @@ export default function ProceduresPage() {
                   <div className="flex flex-col sm:flex-row sm:items-start gap-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex flex-wrap items-center gap-2 mb-1">
-                        <span className="text-xs font-mono text-gray-400">{proc.reference_number}</span>
+                        {proc.reference_no && (
+                          <span className="text-xs font-mono text-gray-400">{proc.reference_no}</span>
+                        )}
                         {statusBadge(proc.status)}
-                        {analysisBadge(proc.analysis_status)}
                       </div>
                       <h3 className="font-semibold text-gray-900 text-sm leading-snug mb-2">
-                        {proc.title}
+                        {proc.object_description ?? '(pa përshkrim)'}
                       </h3>
                       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
-                        <span className="flex items-center gap-1">
-                          <Building className="h-3.5 w-3.5" />
-                          {proc.contracting_authority}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Calendar className="h-3.5 w-3.5" />
-                          Afati: {format(parseISO(proc.deadline), 'dd MMM yyyy')}
-                        </span>
-                        {proc.estimated_value && (
+                        {proc.authority_name && (
                           <span className="flex items-center gap-1">
-                            <DollarSign className="h-3.5 w-3.5" />
-                            {formatCurrency(proc.estimated_value, proc.currency)}
+                            <Building className="h-3.5 w-3.5" />
+                            {proc.authority_name}
                           </span>
                         )}
-                        <span className="flex items-center gap-1">
-                          <BarChart2 className="h-3.5 w-3.5" />
-                          {TYPE_LABELS[proc.procedure_type] ?? proc.procedure_type}
-                        </span>
+                        {proc.closing_date && (
+                          <span className="flex items-center gap-1">
+                            <Calendar className="h-3.5 w-3.5" />
+                            Afati: {format(parseISO(proc.closing_date), 'dd MMM yyyy')}
+                          </span>
+                        )}
+                        {proc.fund_limit != null && (
+                          <span className="flex items-center gap-1">
+                            <DollarSign className="h-3.5 w-3.5" />
+                            {formatCurrency(proc.fund_limit, proc.currency ?? 'ALL')}
+                          </span>
+                        )}
+                        {proc.procedure_type && (
+                          <span className="flex items-center gap-1">
+                            <BarChart2 className="h-3.5 w-3.5" />
+                            {proc.procedure_type}
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
@@ -298,27 +335,16 @@ export default function ProceduresPage() {
             ))}
           </div>
 
-          {/* Pagination */}
           {totalPages > 1 && (
             <div className="flex items-center justify-between">
               <p className="text-xs text-gray-500">
                 Faqja {page} nga {totalPages} · {data?.total} procedura
               </p>
               <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={page <= 1}
-                  onClick={() => setPage((p) => p - 1)}
-                >
+                <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
                   Prapa
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={page >= totalPages}
-                  onClick={() => setPage((p) => p + 1)}
-                >
+                <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
                   Para
                 </Button>
               </div>
@@ -326,6 +352,8 @@ export default function ProceduresPage() {
           )}
         </>
       )}
+
+      <CreateProcedureDialog open={createOpen} onClose={() => setCreateOpen(false)} />
     </div>
   )
 }

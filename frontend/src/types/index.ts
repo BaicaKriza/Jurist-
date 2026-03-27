@@ -287,12 +287,17 @@ export interface PaginatedResponse<T> {
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
 export interface DashboardStats {
+  total_companies: number
   active_companies: number
   total_documents: number
-  expiring_soon: number
-  expired_documents: number
   total_procedures: number
+  total_analyses: number
+  total_users: number
+  active_users: number
 }
+
+// Alias for backward compat
+export type MatchingStatus = MatchStatus
 
 // ─── Form Types ───────────────────────────────────────────────────────────────
 

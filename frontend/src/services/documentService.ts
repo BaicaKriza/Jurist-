@@ -54,6 +54,11 @@ export const documentService = {
     return `${api.defaults.baseURL}/documents/${id}/download`
   },
 
+  async getAllDocuments(filters?: DocumentFilters): Promise<PaginatedResponse<Document>> {
+    const { data } = await api.get('/documents', { params: filters })
+    return data
+  },
+
   async getExpiringDocuments(days = 30, companyId?: string): Promise<Document[]> {
     const { data } = await api.get('/expiring', {
       params: { days, company_id: companyId },

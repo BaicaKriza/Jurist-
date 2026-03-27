@@ -1,0 +1,25 @@
+{
+  "name": "jurist-workspace",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Jurist – Albanian procurement document management platform",
+  "scripts": {
+    "install:all": "npm install --prefix frontend && python3 -m pip install -r backend/requirements.txt --quiet",
+    "dev": "concurrently -k -n BACK,FRONT -c cyan,green \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload",
+    "dev:frontend": "npm run dev --prefix frontend -- --host 0.0.0.0 --port 5173",
+    "seed": "cd backend && python3 seed.py",
+    "build": "npm run build --prefix frontend",
+    "start": "concurrently -k -n BACK,FRONT -c cyan,green \"npm run start:backend\" \"npm run start:frontend\"",
+    "start:backend": "cd backend && python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8000",
+    "start:frontend": "npm run preview --prefix frontend -- --host 0.0.0.0 --port 4173",
+    "stop": "echo 'Press Ctrl+C to stop all processes'"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  },
+  "engines": {
+    "node": ">=20",
+    "npm": ">=10"
+  }
+}

@@ -70,6 +70,14 @@ export const procedureService = {
 
   // ── Analysis ──────────────────────────────────────────────────────────────
 
+  async getAnalyses(params?: {
+    page?: number
+    page_size?: number
+  }): Promise<PaginatedResponse<ProcedureAnalysis>> {
+    const { data } = await api.get('/analyses', { params })
+    return data
+  },
+
   async getProcedureAnalysis(procedureId: string): Promise<ProcedureAnalysis> {
     const { data } = await api.get(`/analyses/procedures/${procedureId}/analysis`)
     return data

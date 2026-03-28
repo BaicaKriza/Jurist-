@@ -77,6 +77,8 @@ class RequiredDocumentItem(Base):
         "MatchingResult",
         back_populates="required_document_item",
         foreign_keys="MatchingResult.required_document_item_id",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
     )
 
     def __repr__(self) -> str:

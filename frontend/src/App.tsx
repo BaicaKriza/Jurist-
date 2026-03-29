@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
 import { PageLoader } from '@/components/common/LoadingSpinner'
 import Layout from '@/components/layout/Layout'
+import { ChatWidget } from '@/components/chat/ChatWidget'
 
 // Pages
 import LoginPage from '@/pages/auth/LoginPage'
@@ -83,5 +84,6 @@ export default function App() {
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    <ChatWidget />
   )
 }

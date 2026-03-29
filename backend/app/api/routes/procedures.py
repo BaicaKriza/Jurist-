@@ -1,7 +1,11 @@
+import hashlib
 import logging
+import os
+import tempfile
+from pathlib import Path
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, UploadFile, File, Form, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -195,9 +199,107 @@ def get_procedure_documents(
     _: User = Depends(get_current_user),
 ) -> List[ProcedureDocumentResponse]:
     """Return all documents (tender dossier files) linked to a procurement procedure."""
+    from app.core.storage import get_file_url
     service = ProcedureService(db)
     docs = service.get_procedure_documents(procedure_id)
-    return [ProcedureDocumentResponse.model_validate(d) for d in docs]
+    result = []
+    for d in docs:
+        resp = ProcedureDocumentResponse.model_validate(d)
+        resp.is_uploaded = d.file_path is not None
+        if d.file_path:
+            try:
+                resp.download_url = get_file_url(d.file_path)
+            except Exception:
+                pass
+        result.append(resp)
+    return result
+
+
+@router.post(
+    "/{procedure_id}/upload-file",
+    response_model=ProcedureDocumentResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Upload a file to a procedure with AI analysis",
+)
+async def upload_procedure_file(
+    procedure_id: str,
+    file: UploadFile = File(...),
+    title: Optional[str] = Form(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ProcedureDocumentResponse:
+    """Upload a document file to a procedure. Text is extracted and an AI summary is generated."""
+    from app.models.procedure import ProcedureDocument as ProcedureDocumentModel, Procedure as ProcedureModel
+    from app.core.storage import upload_file, get_file_url
+    from app.utils.text_extract import TextExtractor
+    from app.services.analysis_service import AnalysisService
+    from sqlalchemy import select
+
+    # Verify procedure exists
+    proc = db.execute(
+        select(ProcedureModel).where(ProcedureModel.id == procedure_id)
+    ).scalar_one_or_none()
+    if not proc:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Procedura nuk u gjet")
+
+    # Read file
+    file_content = await file.read()
+    file_ext = Path(file.filename or "doc").suffix.lower()
+    checksum = hashlib.sha256(file_content).hexdigest()
+    object_name = f"procedures/{procedure_id}/{checksum}{file_ext}"
+    mime_type = file.content_type or "application/octet-stream"
+
+    # Store file
+    upload_file(file_content, object_name, content_type=mime_type)
+
+    # Extract text
+    extracted_text = None
+    tmp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix=file_ext, delete=False) as tmp:
+            tmp.write(file_content)
+            tmp_path = tmp.name
+        extracted_text = TextExtractor().extract(tmp_path, mime_type)
+    except Exception as e:
+        logger.warning(f"Text extraction failed for procedure doc: {e}")
+    finally:
+        if tmp_path:
+            try:
+                os.unlink(tmp_path)
+            except Exception:
+                pass
+
+    # AI summary
+    ai_summary = None
+    if extracted_text:
+        try:
+            ai_summary = AnalysisService(db).generate_summary(extracted_text)
+        except Exception as e:
+            logger.warning(f"AI summary failed for procedure doc: {e}")
+
+    doc = ProcedureDocumentModel(
+        procedure_id=procedure_id,
+        title=title or file.filename or "Dokument",
+        file_name=file.filename,
+        file_path=object_name,
+        mime_type=mime_type,
+        checksum=checksum,
+        extracted_text=extracted_text,
+        ai_summary=ai_summary,
+    )
+    db.add(doc)
+    db.commit()
+    db.refresh(doc)
+    logger.info(f"File '{file.filename}' uploaded to procedure {procedure_id}")
+
+    resp = ProcedureDocumentResponse.model_validate(doc)
+    resp.is_uploaded = True
+    try:
+        resp.download_url = get_file_url(object_name)
+    except Exception:
+        pass
+    return resp
 
 
 # ---------------------------------------------------------------------------
@@ -340,6 +442,41 @@ def list_requirements(
         .order_by(RequiredDocumentItem.category, RequiredDocumentItem.name)
     ).scalars().all()
     return [RequiredDocumentResponse.model_validate(i) for i in items]
+
+
+@router.delete(
+    "/{procedure_id}/documents/{document_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete an uploaded procedure document",
+)
+def delete_procedure_document(
+    procedure_id: str,
+    document_id: str,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+) -> None:
+    """Delete an uploaded document from a procedure."""
+    from app.models.procedure import ProcedureDocument as ProcedureDocumentModel
+    from app.core.storage import delete_file
+    from sqlalchemy import select
+
+    doc = db.execute(
+        select(ProcedureDocumentModel).where(
+            ProcedureDocumentModel.id == document_id,
+            ProcedureDocumentModel.procedure_id == procedure_id,
+        )
+    ).scalar_one_or_none()
+    if not doc:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Dokumenti nuk u gjet")
+    file_path = doc.file_path
+    db.delete(doc)
+    db.commit()
+    if file_path:
+        try:
+            delete_file(file_path)
+        except Exception:
+            pass
 
 
 @router.delete(

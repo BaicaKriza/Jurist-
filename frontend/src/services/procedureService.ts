@@ -49,6 +49,20 @@ export const procedureService = {
     return data
   },
 
+  async uploadProcedureFile(id: string, file: File, title?: string): Promise<ProcedureDocument> {
+    const form = new FormData()
+    form.append('file', file)
+    if (title) form.append('title', title)
+    const { data } = await api.post(`/procedures/${id}/upload-file`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    return data
+  },
+
+  async deleteProcedureDocument(procedureId: string, docId: string): Promise<void> {
+    await api.delete(`/procedures/${procedureId}/documents/${docId}`)
+  },
+
   // ── Requirements ──────────────────────────────────────────────────────────
 
   async getRequiredDocuments(procedureId: string): Promise<RequiredDocumentItem[]> {

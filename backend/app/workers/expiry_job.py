@@ -91,7 +91,7 @@ def run_expiry_check() -> dict:
 
 
 def run_auto_sync() -> None:
-    """Run APP.gov.al procedure sync (called from background scheduler thread)."""
+    """Run APP.gov.al procedure sync in a background thread (called by APScheduler)."""
     db: Session = SessionLocal()
     try:
         from app.integrations.app_gov.sync_service import AppGovSyncService
@@ -99,7 +99,7 @@ def run_auto_sync() -> None:
         result = asyncio.run(service.run_full_sync(max_pages=3))
         logger.info(
             f"[auto_sync] APP.gov.al sync complete – "
-            f"new: {result.synced}, updated: {result.updated}, errors: {result.errors}"
+            f"new: {result.synced_count}, updated: {result.updated_count}, errors: {result.errors}"
         )
     except Exception as e:
         logger.error(f"[auto_sync] Sync failed: {e}")
@@ -110,6 +110,7 @@ def run_auto_sync() -> None:
 def start_scheduler():
     """Start APScheduler with expiry + auto-sync jobs. Call once at app startup."""
     try:
+        from datetime import datetime
         from apscheduler.schedulers.background import BackgroundScheduler
         from apscheduler.triggers.cron import CronTrigger
         from apscheduler.triggers.interval import IntervalTrigger
@@ -126,7 +127,8 @@ def start_scheduler():
             misfire_grace_time=3600,
         )
 
-        # APP.gov.al auto-sync every 6 hours
+        # APP.gov.al auto-sync every 6 hours; next_run_time=now() triggers
+        # the first run immediately in the background thread (safe – no async context issue)
         scheduler.add_job(
             run_auto_sync,
             trigger=IntervalTrigger(hours=6),
@@ -134,14 +136,14 @@ def start_scheduler():
             name="APP.gov.al procedure auto-sync",
             replace_existing=True,
             misfire_grace_time=3600,
+            next_run_time=datetime.now(),
         )
 
         scheduler.start()
         logger.info("[expiry_job] Scheduler started – expiry check daily at 01:00, sync every 6h")
 
-        # Run both once on startup
+        # Expiry check is sync, safe to call directly on startup
         run_expiry_check()
-        run_auto_sync()
 
         return scheduler
 

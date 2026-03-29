@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
@@ -16,6 +16,7 @@ import {
   ChevronRight,
   Plus,
   Trash2,
+  Upload,
 } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -178,6 +179,8 @@ export default function ProcedureDetailPage() {
   const queryClient = useQueryClient()
   const { success, error } = useToast()
   const [addReqOpen, setAddReqOpen] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [uploadingFile, setUploadingFile] = useState(false)
 
   const { data: procedure, isLoading: procLoading } = useQuery({
     queryKey: ['procedure', procedureId],
@@ -226,6 +229,25 @@ export default function ProcedureDetailPage() {
       error('Gabim', err?.response?.data?.detail ?? 'Fshirja dështoi.')
     },
   })
+
+  const appDocs = procDocs.filter((d) => !d.is_uploaded)
+  const uploadedDocs = procDocs.filter((d) => d.is_uploaded)
+
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadingFile(true)
+    try {
+      await procedureService.uploadProcedureFile(procedureId, file)
+      queryClient.invalidateQueries({ queryKey: ['procedure-docs', procedureId] })
+      success('Skedari u ngarkua', 'AI po analizon dokumentin...')
+    } catch (err: any) {
+      error('Gabim', err?.response?.data?.detail ?? 'Ngarkimi dështoi.')
+    } finally {
+      setUploadingFile(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
 
   if (procLoading) {
     return (
@@ -352,6 +374,15 @@ export default function ProcedureDetailPage() {
         )}
       </div>
 
+      {/* Hidden file input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        className="hidden"
+        accept=".pdf,.docx,.doc,.xlsx,.xls,.png,.jpg,.jpeg"
+        onChange={handleFileUpload}
+      />
+
       {/* Tabs */}
       <Tabs defaultValue="details">
         <TabsList>
@@ -362,8 +393,11 @@ export default function ProcedureDetailPage() {
           <TabsTrigger value="analysis">
             Analiza AI {analysis ? '✓' : ''}
           </TabsTrigger>
+          <TabsTrigger value="my-docs">
+            Dok. Mia {uploadedDocs.length > 0 ? `(${uploadedDocs.length})` : ''}
+          </TabsTrigger>
           <TabsTrigger value="documents">
-            Dok. APP ({procDocs.length})
+            Dok. APP ({appDocs.length})
           </TabsTrigger>
         </TabsList>
 
@@ -536,18 +570,98 @@ export default function ProcedureDetailPage() {
           )}
         </TabsContent>
 
+        {/* My uploaded documents */}
+        <TabsContent value="my-docs">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-3">
+              <CardTitle className="text-sm">Dokumentet e Ngarkuara</CardTitle>
+              <Button
+                size="sm"
+                onClick={() => fileInputRef.current?.click()}
+                loading={uploadingFile}
+                disabled={uploadingFile}
+              >
+                <Upload className="h-3.5 w-3.5 mr-1.5" />
+                {uploadingFile ? 'Duke ngarkuar...' : 'Ngarko Skedar'}
+              </Button>
+            </CardHeader>
+            <CardContent className="p-0">
+              {uploadedDocs.length === 0 ? (
+                <div
+                  className="flex flex-col items-center py-12 text-gray-400 border-2 border-dashed border-gray-200 rounded-lg mx-6 mb-6 cursor-pointer hover:border-blue-400 hover:text-blue-400 transition-colors"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Upload className="h-10 w-10 mb-3 text-gray-300" />
+                  <p className="text-sm font-medium">Kliko ose zvarrit skedarin këtu</p>
+                  <p className="text-xs mt-1">PDF, DOCX, XLSX, JPG, PNG – maks 50 MB</p>
+                </div>
+              ) : (
+                <ul className="divide-y divide-gray-100">
+                  {uploadedDocs.map((doc) => (
+                    <li key={doc.id} className="px-6 py-4 hover:bg-gray-50">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-3 min-w-0 flex-1">
+                          <FileText className="h-5 w-5 text-violet-500 shrink-0 mt-0.5" />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-semibold text-gray-900 truncate">
+                              {doc.title ?? doc.file_name ?? 'Dokument'}
+                            </p>
+                            {doc.mime_type && (
+                              <p className="text-xs text-gray-400 mb-1">{doc.mime_type}</p>
+                            )}
+                            {doc.ai_summary && (
+                              <div className="mt-1.5 p-2.5 bg-violet-50 rounded-md border border-violet-100">
+                                <p className="text-xs font-semibold text-violet-700 mb-1 flex items-center gap-1">
+                                  <Sparkles className="h-3 w-3" />
+                                  Analizë AI
+                                </p>
+                                <p className="text-xs text-violet-900 leading-relaxed line-clamp-4">{doc.ai_summary}</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        {doc.download_url && (
+                          <Button variant="outline" size="sm" asChild className="shrink-0">
+                            <a href={doc.download_url} target="_blank" rel="noopener noreferrer">
+                              Shkarko
+                            </a>
+                          </Button>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {uploadedDocs.length > 0 && (
+                <div className="px-6 pb-4">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full border-dashed"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploadingFile}
+                  >
+                    <Upload className="h-3.5 w-3.5 mr-1.5" />
+                    Shto skedar tjetër
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         {/* Procedure documents (from APP) */}
         <TabsContent value="documents">
           <Card>
             <CardContent className="p-0">
-              {procDocs.length === 0 ? (
+              {appDocs.length === 0 ? (
                 <div className="flex flex-col items-center py-12 text-gray-400">
                   <FileText className="h-10 w-10 mb-3 text-gray-300" />
                   <p className="text-sm">Nuk ka dokumente të APP-it.</p>
                 </div>
               ) : (
                 <ul className="divide-y divide-gray-100">
-                  {procDocs.map((doc) => (
+                  {appDocs.map((doc) => (
                     <li key={doc.id} className="flex items-center justify-between px-6 py-3 hover:bg-gray-50">
                       <div className="flex items-center gap-3 min-w-0">
                         <FileText className="h-4 w-4 text-blue-500 shrink-0" />

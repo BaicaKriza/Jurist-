@@ -170,9 +170,12 @@ export interface ProcedureDocument {
   title?: string
   document_url?: string
   file_name?: string
+  file_path?: string
   mime_type?: string
   checksum?: string
   ai_summary?: string
+  is_uploaded?: boolean
+  download_url?: string
   created_at: string
 }
 

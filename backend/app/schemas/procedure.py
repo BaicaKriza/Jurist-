@@ -37,9 +37,12 @@ class ProcedureDocumentResponse(BaseModel):
     title: Optional[str] = None
     document_url: Optional[str] = None
     file_name: Optional[str] = None
+    file_path: Optional[str] = None
     mime_type: Optional[str] = None
     checksum: Optional[str] = None
     ai_summary: Optional[str] = None
+    is_uploaded: bool = False
+    download_url: Optional[str] = None
     created_at: datetime
 
 

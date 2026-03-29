@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Jurist Pro
+GenericName=Albanian Procurement Document Manager
+Comment=Ndeze Jurist Pro – sistemi i menaxhimit të dokumenteve ligjore
+Exec=bash -c "cd %k/.. && bash Jurist-Start.sh"
+Path=%k/..
+Icon=%k/../frontend/public/favicon.ico
+Terminal=true
+Categories=Office;Finance;
+Keywords=jurist;procurement;albania;legal;
+StartupNotify=true

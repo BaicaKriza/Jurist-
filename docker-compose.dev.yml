@@ -1,26 +1,21 @@
-version: '3.9'
-
-# Minimal dev compose: only the database
-# Run with: docker compose -f docker-compose.dev.yml up -d db
-# Then use start.sh to run backend and frontend locally.
 services:
   db:
     image: postgres:15-alpine
     container_name: jurist_db_dev
     restart: unless-stopped
+    # host network = PostgreSQL accessible directly via 127.0.0.1:5432
+    # Works in Codespaces where bridge port-mapping is blocked
+    network_mode: host
     environment:
       POSTGRES_USER: jurist
       POSTGRES_PASSWORD: jurist
       POSTGRES_DB: jurist
+      PGDATA: /var/lib/postgresql/data
     volumes:
-      - postgres_dev_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
+      # Bind-mount to workspace dir → data survives Codespace stop/start
+      - ./data/postgres:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U jurist -d jurist"]
       interval: 5s
       timeout: 5s
-      retries: 10
-
-volumes:
-  postgres_dev_data:
+      retries: 12

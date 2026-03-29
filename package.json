@@ -5,6 +5,10 @@
   "description": "Jurist – Albanian procurement document management platform",
   "scripts": {
     "install:all": "npm install --prefix frontend && python3 -m pip install -r backend/requirements.txt --quiet",
+    "db:start": "docker compose -f docker-compose.dev.yml up -d db && node scripts/wait-for-db.js",
+    "db:stop": "docker compose -f docker-compose.dev.yml stop db",
+    "db:logs": "docker compose -f docker-compose.dev.yml logs -f db",
+    "predev": "npm run db:start",
     "dev": "concurrently -k -n BACK,FRONT -c cyan,green \"npm run dev:backend\" \"npm run dev:frontend\"",
     "dev:backend": "cd backend && python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload",
     "dev:frontend": "npm run dev --prefix frontend -- --host 0.0.0.0 --port 5173",
@@ -13,7 +17,7 @@
     "start": "concurrently -k -n BACK,FRONT -c cyan,green \"npm run start:backend\" \"npm run start:frontend\"",
     "start:backend": "cd backend && python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8000",
     "start:frontend": "npm run preview --prefix frontend -- --host 0.0.0.0 --port 4173",
-    "stop": "echo 'Press Ctrl+C to stop all processes'"
+    "stop": "npm run db:stop && echo 'Services stopped'"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"

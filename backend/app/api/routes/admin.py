@@ -304,3 +304,13 @@ def get_dashboard_stats(
         "total_users": total_users,
         "active_users": active_users,
     }
+
+
+@router.post("/expiry-check", summary="Run document expiry check manually")
+def run_expiry_check_manual(
+    current_user: User = Depends(get_current_superadmin),
+):
+    """Trigger the document expiry check immediately (superadmin only)."""
+    from app.workers.expiry_job import run_expiry_check
+    result = run_expiry_check()
+    return {"status": "ok", **result}

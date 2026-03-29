@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://redis:6379/0"
 
     OPENAI_API_KEY: str = ""
+    ANTHROPIC_API_KEY: str = ""
 
     APP_GOV_NOTICES_URL: str = "https://www.app.gov.al/njoftimi-i-kontrat%C3%ABs-s%C3%AB-shpallur/"
     APP_GOV_SMALL_VALUE_URL: str = "https://www.app.gov.al/prokurimet-me-vlere-te-vogel/"

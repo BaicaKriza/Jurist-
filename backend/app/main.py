@@ -19,12 +19,24 @@ logging.basicConfig(
 async def lifespan(app: FastAPI):
     """Application lifespan handler: run startup tasks before serving, cleanup on shutdown."""
     logger.info("Starting up Jurist API...")
+    scheduler = None
     try:
         create_tables()
         logger.info("Database tables verified/created.")
     except Exception as e:
         logger.error(f"Startup error during create_tables: {e}")
+
+    try:
+        from app.workers.expiry_job import start_scheduler
+        scheduler = start_scheduler()
+    except Exception as e:
+        logger.error(f"Startup error starting expiry scheduler: {e}")
+
     yield
+
+    if scheduler:
+        scheduler.shutdown(wait=False)
+        logger.info("Expiry scheduler stopped.")
     logger.info("Shutting down Jurist API.")
 
 

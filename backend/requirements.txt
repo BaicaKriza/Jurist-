@@ -20,6 +20,8 @@ celery==5.4.0
 redis==5.1.1
 minio==7.2.9
 openai==1.51.2
+anthropic>=0.40.0
+apscheduler==3.10.4
 python-magic==0.4.27
 pillow==10.4.0
 pytesseract==0.3.13

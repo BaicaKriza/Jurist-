@@ -49,15 +49,51 @@ class AnalysisService:
         self.db = db
 
     async def analyze_procedure_with_ai(self, procedure: Procedure) -> ProcedureAnalysis:
-        """Perform full AI analysis of a procedure."""
-        if not settings.OPENAI_API_KEY:
-            # Return a mock analysis when no API key
+        """Perform full AI analysis of a procedure.
+        Provider priority: Anthropic Claude → OpenAI → mock.
+        """
+        if settings.ANTHROPIC_API_KEY:
+            return await self._analyze_with_anthropic(procedure)
+        if settings.OPENAI_API_KEY:
+            return await self._analyze_with_openai(procedure)
+        return self._create_mock_analysis(procedure)
+
+    async def _analyze_with_anthropic(self, procedure: Procedure) -> ProcedureAnalysis:
+        """Use Anthropic Claude (claude-sonnet-4-6) for analysis."""
+        try:
+            import anthropic
+            client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+            procedure_text = self._build_procedure_text(procedure)
+
+            message = await client.messages.create(
+                model="claude-sonnet-4-6",
+                max_tokens=3000,
+                system=ANALYSIS_SYSTEM_PROMPT + "\n\nPërgjigjuni VETËM me JSON të vlefshëm, pa tekst shtesë.",
+                messages=[
+                    {
+                        "role": "user",
+                        "content": f"Analizoni këtë procedurë prokurimi:\n\n{procedure_text}",
+                    }
+                ],
+            )
+            raw = message.content[0].text.strip()
+            # Strip markdown code fences if present
+            if raw.startswith("```"):
+                raw = raw.split("```")[1]
+                if raw.startswith("json"):
+                    raw = raw[4:]
+            ai_data = json.loads(raw)
+            logger.info(f"Anthropic analysis completed for procedure {procedure.id}")
+            return self._save_analysis(procedure.id, ai_data, raw_json=ai_data)
+        except Exception as e:
+            logger.error(f"Anthropic analysis failed: {e}")
             return self._create_mock_analysis(procedure)
 
+    async def _analyze_with_openai(self, procedure: Procedure) -> ProcedureAnalysis:
+        """Use OpenAI GPT-4o-mini for analysis (fallback when no Anthropic key)."""
         try:
             import openai
             client = openai.AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
-
             procedure_text = self._build_procedure_text(procedure)
 
             response = await client.chat.completions.create(
@@ -70,13 +106,12 @@ class AnalysisService:
                 response_format={"type": "json_object"},
                 max_tokens=3000,
             )
-
             raw = response.choices[0].message.content
             ai_data = json.loads(raw)
+            logger.info(f"OpenAI analysis completed for procedure {procedure.id}")
             return self._save_analysis(procedure.id, ai_data, raw_json=ai_data)
-
         except Exception as e:
-            logger.error(f"AI analysis failed: {e}")
+            logger.error(f"OpenAI analysis failed: {e}")
             return self._create_mock_analysis(procedure)
 
     def _build_procedure_text(self, procedure: Procedure) -> str:
@@ -238,22 +273,40 @@ class AnalysisService:
         ).scalars().all())
 
     def generate_summary(self, text: str) -> Optional[str]:
-        """Generate a summary of given text using AI."""
-        if not settings.OPENAI_API_KEY:
-            return text[:500] + "..." if len(text) > 500 else text
-        try:
-            import openai
-            client = openai.OpenAI(api_key=settings.OPENAI_API_KEY)
-            response = client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[
-                    {"role": "system", "content": "Bëni një përmbledhje të shkurtër të dokumentit në shqip."},
-                    {"role": "user", "content": text[:4000]},
-                ],
-                max_tokens=500,
-                temperature=0.3,
-            )
-            return response.choices[0].message.content
-        except Exception as e:
-            logger.error(f"Summary generation failed: {e}")
-            return None
+        """Generate a summary of given text using AI. Claude → OpenAI → truncate."""
+        if settings.ANTHROPIC_API_KEY:
+            try:
+                import anthropic
+                client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+                msg = client.messages.create(
+                    model="claude-haiku-4-5-20251001",
+                    max_tokens=500,
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": f"Bëni një përmbledhje të shkurtër të dokumentit në shqip:\n\n{text[:4000]}",
+                        }
+                    ],
+                )
+                return msg.content[0].text
+            except Exception as e:
+                logger.error(f"Anthropic summary failed: {e}")
+
+        if settings.OPENAI_API_KEY:
+            try:
+                import openai
+                client = openai.OpenAI(api_key=settings.OPENAI_API_KEY)
+                response = client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[
+                        {"role": "system", "content": "Bëni një përmbledhje të shkurtër të dokumentit në shqip."},
+                        {"role": "user", "content": text[:4000]},
+                    ],
+                    max_tokens=500,
+                    temperature=0.3,
+                )
+                return response.choices[0].message.content
+            except Exception as e:
+                logger.error(f"OpenAI summary failed: {e}")
+
+        return text[:500] + "..." if len(text) > 500 else text

@@ -38,7 +38,17 @@ else
   info "Mjedis: lokal"
 fi
 
-export DATABASE_URL="postgresql+psycopg2://jurist:jurist@localhost:5432/jurist"
+# In Codespaces Docker networking, use container name; locally use localhost
+if docker inspect jurist_db_dev &>/dev/null 2>&1; then
+  DB_HOST="localhost"
+  # Check if container port is reachable via localhost; if not, use container IP
+  if ! nc -z localhost 5432 2>/dev/null; then
+    DB_HOST=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' jurist_db_dev 2>/dev/null || echo "localhost")
+  fi
+else
+  DB_HOST="localhost"
+fi
+export DATABASE_URL="postgresql+psycopg2://jurist:jurist@${DB_HOST}:5432/jurist"
 export SECRET_KEY="${SECRET_KEY:-dev-secret-key-change-in-production}"
 export ENVIRONMENT="development"
 export STORAGE_LOCAL_PATH="$SCRIPT_DIR/backend/uploads"
@@ -52,19 +62,25 @@ ok "Node.js $(node -v) + Python $(python3 --version)"
 # ── 2. PostgreSQL ─────────────────────────────────────────────
 info "Duke kontrolluar PostgreSQL..."
 
-# Nëse DB tashmë është aktive (Codespaces e ndez vetë), kapërceje Docker
-if nc -z localhost 5432 2>/dev/null; then
+db_ready() {
+  # Try docker exec first (works in Codespaces where port isn't localhost)
+  docker exec jurist_db_dev pg_isready -U jurist -q 2>/dev/null && return 0
+  # Fallback: nc probe for local
+  nc -z localhost 5432 2>/dev/null && return 0
+  return 1
+}
+
+if db_ready; then
   ok "PostgreSQL tashmë aktiv ✓"
 else
-  # Lokal: ndiz me Docker
   if ! command -v docker &>/dev/null || ! docker info &>/dev/null 2>&1; then
     err "Docker nuk është aktiv dhe PostgreSQL nuk u gjet. Ndize Docker Desktop."
   fi
   info "Duke ndezur PostgreSQL me Docker..."
   docker compose -f docker-compose.dev.yml up -d db
-  MAX=30; i=0
-  while ! nc -z localhost 5432 2>/dev/null; do
-    i=$((i+1)); [ $i -ge $MAX ] && err "PostgreSQL nuk u ndez brenda 30s"
+  MAX=45; i=0
+  while ! db_ready; do
+    i=$((i+1)); [ $i -ge $MAX ] && err "PostgreSQL nuk u ndez brenda ${MAX}s"
     printf "\r${C}  ›  Duke pritur PostgreSQL... ($i/${MAX})${NC}"
     sleep 1
   done

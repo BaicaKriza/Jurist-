@@ -46,45 +46,46 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 export default function App() {
   return (
     <>
-      <Route
-        path="/login"
-        element={
-          <PublicRoute>
-            <LoginPage />
-          </PublicRoute>
-        }
-      />
-
-      <Route
-        path="/"
-        element={
-          <ProtectedRoute>
-            <Layout />
-          </ProtectedRoute>
-        }
-      >
-        <Route index element={<DashboardPage />} />
-        <Route path="companies" element={<CompaniesPage />} />
-        <Route path="companies/:id" element={<CompanyDetailPage />} />
-        <Route path="documents" element={<DocumentsPage />} />
-        <Route path="procedures" element={<ProceduresPage />} />
-        <Route path="procedures/:id" element={<ProcedureDetailPage />} />
-        <Route path="analyses" element={<AnalysesPage />} />
-        <Route path="missing-docs" element={<MissingDocsPage />} />
-        <Route path="settings" element={<SettingsPage />} />
+      <Routes>
         <Route
-          path="admin"
+          path="/login"
           element={
-            <SuperAdminRoute>
-              <AdminPage />
-            </SuperAdminRoute>
+            <PublicRoute>
+              <LoginPage />
+            </PublicRoute>
           }
         />
-      </Route>
 
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
-    <ChatWidget />
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <Layout />
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<DashboardPage />} />
+          <Route path="companies" element={<CompaniesPage />} />
+          <Route path="companies/:id" element={<CompanyDetailPage />} />
+          <Route path="documents" element={<DocumentsPage />} />
+          <Route path="procedures" element={<ProceduresPage />} />
+          <Route path="procedures/:id" element={<ProcedureDetailPage />} />
+          <Route path="analyses" element={<AnalysesPage />} />
+          <Route path="missing-docs" element={<MissingDocsPage />} />
+          <Route path="settings" element={<SettingsPage />} />
+          <Route
+            path="admin"
+            element={
+              <SuperAdminRoute>
+                <AdminPage />
+              </SuperAdminRoute>
+            }
+          />
+        </Route>
+
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+      <ChatWidget />
     </>
   )
 }

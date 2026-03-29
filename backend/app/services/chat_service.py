@@ -116,11 +116,11 @@ class ChatService:
         if context:
             system += f"\n\n---\nKONTEKSTI AKTUAL I SISTEMIT:\n{context}\n---"
 
-        if settings.ANTHROPIC_API_KEY:
-            async for chunk in self._stream_anthropic(messages, system):
-                yield chunk
-        elif settings.OPENAI_API_KEY:
+        if settings.OPENAI_API_KEY:
             async for chunk in self._stream_openai(messages, system):
+                yield chunk
+        elif settings.ANTHROPIC_API_KEY:
+            async for chunk in self._stream_anthropic(messages, system):
                 yield chunk
         else:
             yield self._mock_response(messages)

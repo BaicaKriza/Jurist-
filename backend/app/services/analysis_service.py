@@ -50,12 +50,12 @@ class AnalysisService:
 
     async def analyze_procedure_with_ai(self, procedure: Procedure) -> ProcedureAnalysis:
         """Perform full AI analysis of a procedure.
-        Provider priority: Anthropic Claude → OpenAI → mock.
+        Provider priority: OpenAI → Anthropic Claude → mock.
         """
-        if settings.ANTHROPIC_API_KEY:
-            return await self._analyze_with_anthropic(procedure)
         if settings.OPENAI_API_KEY:
             return await self._analyze_with_openai(procedure)
+        if settings.ANTHROPIC_API_KEY:
+            return await self._analyze_with_anthropic(procedure)
         return self._create_mock_analysis(procedure)
 
     async def _analyze_with_anthropic(self, procedure: Procedure) -> ProcedureAnalysis:
@@ -273,7 +273,24 @@ class AnalysisService:
         ).scalars().all())
 
     def generate_summary(self, text: str) -> Optional[str]:
-        """Generate a summary of given text using AI. Claude → OpenAI → truncate."""
+        """Generate a summary of given text using AI. OpenAI → Claude → truncate."""
+        if settings.OPENAI_API_KEY:
+            try:
+                import openai
+                client = openai.OpenAI(api_key=settings.OPENAI_API_KEY)
+                response = client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[
+                        {"role": "system", "content": "Bëni një përmbledhje të shkurtër të dokumentit në shqip."},
+                        {"role": "user", "content": text[:4000]},
+                    ],
+                    max_tokens=500,
+                    temperature=0.3,
+                )
+                return response.choices[0].message.content
+            except Exception as e:
+                logger.error(f"OpenAI summary failed: {e}")
+
         if settings.ANTHROPIC_API_KEY:
             try:
                 import anthropic
@@ -291,22 +308,5 @@ class AnalysisService:
                 return msg.content[0].text
             except Exception as e:
                 logger.error(f"Anthropic summary failed: {e}")
-
-        if settings.OPENAI_API_KEY:
-            try:
-                import openai
-                client = openai.OpenAI(api_key=settings.OPENAI_API_KEY)
-                response = client.chat.completions.create(
-                    model="gpt-4o-mini",
-                    messages=[
-                        {"role": "system", "content": "Bëni një përmbledhje të shkurtër të dokumentit në shqip."},
-                        {"role": "user", "content": text[:4000]},
-                    ],
-                    max_tokens=500,
-                    temperature=0.3,
-                )
-                return response.choices[0].message.content
-            except Exception as e:
-                logger.error(f"OpenAI summary failed: {e}")
 
         return text[:500] + "..." if len(text) > 500 else text

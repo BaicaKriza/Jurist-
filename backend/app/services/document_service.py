@@ -102,6 +102,15 @@ class DocumentService:
         if metadata.expiry_date and metadata.expiry_date < date.today():
             doc_status = DocumentStatus.EXPIRED
 
+        # Auto-generate AI summary from extracted text
+        ai_summary = None
+        if extracted_text:
+            try:
+                from app.services.analysis_service import AnalysisService
+                ai_summary = AnalysisService(self.db).generate_summary(extracted_text)
+            except Exception as e:
+                logger.warning(f"AI summary generation failed: {e}")
+
         document = Document(
             company_id=company_id,
             folder_id=metadata.folder_id,
@@ -119,13 +128,15 @@ class DocumentService:
             version_no=1,
             status=doc_status,
             extracted_text=extracted_text,
+            ai_summary=ai_summary,
             metadata_json=metadata.metadata_json or {},
             created_by=created_by,
         )
         self.db.add(document)
         self.db.commit()
         self.db.refresh(document)
-        logger.info(f"Document {document.id} uploaded for company {company_id}")
+        logger.info(f"Document {document.id} uploaded for company {company_id}" +
+                    (" (AI summary generated)" if ai_summary else ""))
         return document
 
     def get_documents(

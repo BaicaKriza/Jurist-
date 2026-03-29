@@ -1,11 +1,11 @@
 """
-Expiry automation job.
+Expiry automation job + APP.gov.al auto-sync.
 
-Runs once on startup and then every day at 01:00 (server local time).
-Marks any ACTIVE document whose expiry_date < today as EXPIRED.
-Also marks REVIEW_REQUIRED documents that are past expiry as EXPIRED.
+- Expiry check: runs on startup and daily at 01:00 (Europe/Tirane)
+- Procedure sync: runs on startup and every 6 hours automatically
 """
 
+import asyncio
 import logging
 from datetime import date
 
@@ -90,15 +90,33 @@ def run_expiry_check() -> dict:
     return summary
 
 
+def run_auto_sync() -> None:
+    """Run APP.gov.al procedure sync (called from background scheduler thread)."""
+    db: Session = SessionLocal()
+    try:
+        from app.integrations.app_gov.sync_service import AppGovSyncService
+        service = AppGovSyncService(db)
+        result = asyncio.run(service.run_full_sync(max_pages=3))
+        logger.info(
+            f"[auto_sync] APP.gov.al sync complete – "
+            f"new: {result.synced}, updated: {result.updated}, errors: {result.errors}"
+        )
+    except Exception as e:
+        logger.error(f"[auto_sync] Sync failed: {e}")
+    finally:
+        db.close()
+
+
 def start_scheduler():
-    """Start APScheduler with the expiry job. Call once at app startup."""
+    """Start APScheduler with expiry + auto-sync jobs. Call once at app startup."""
     try:
         from apscheduler.schedulers.background import BackgroundScheduler
         from apscheduler.triggers.cron import CronTrigger
+        from apscheduler.triggers.interval import IntervalTrigger
 
         scheduler = BackgroundScheduler(timezone="Europe/Tirane")
 
-        # Run at 01:00 AM every day
+        # Daily expiry check at 01:00 AM
         scheduler.add_job(
             run_expiry_check,
             trigger=CronTrigger(hour=1, minute=0),
@@ -108,11 +126,22 @@ def start_scheduler():
             misfire_grace_time=3600,
         )
 
-        scheduler.start()
-        logger.info("[expiry_job] Scheduler started – daily expiry check at 01:00 (Europe/Tirane)")
+        # APP.gov.al auto-sync every 6 hours
+        scheduler.add_job(
+            run_auto_sync,
+            trigger=IntervalTrigger(hours=6),
+            id="app_gov_auto_sync",
+            name="APP.gov.al procedure auto-sync",
+            replace_existing=True,
+            misfire_grace_time=3600,
+        )
 
-        # Also run once immediately on startup to catch any backlog
+        scheduler.start()
+        logger.info("[expiry_job] Scheduler started – expiry check daily at 01:00, sync every 6h")
+
+        # Run both once on startup
         run_expiry_check()
+        run_auto_sync()
 
         return scheduler
 

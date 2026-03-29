@@ -19,6 +19,15 @@ export default defineConfig(({ mode }) => {
       port: 5173,
       host: '0.0.0.0',
       strictPort: false,
+      // Allow GitHub Codespaces and any cloud dev environment hosts
+      allowedHosts: 'all',
+      hmr: process.env.CODESPACES
+        ? {
+            // In Codespaces, HMR WebSocket must go through the forwarded port
+            clientPort: 443,
+            protocol: 'wss',
+          }
+        : true,
       proxy: {
         '/api': {
           target: backendTarget,

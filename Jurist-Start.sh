@@ -150,26 +150,42 @@ echo "$FRONT_PID" >> "$PID_FILE"
 sleep 3
 ok "Frontend gati ✓"
 
-# ── 7. Hap shfletuesin automatikisht ─────────────────────────
-APP_URL="http://localhost:5173"
-info "Duke hapur shfletuesin: $APP_URL"
-
-if command -v xdg-open &>/dev/null; then
-  xdg-open "$APP_URL" &
-elif command -v open &>/dev/null; then
-  open "$APP_URL" &
+# ── 7. Ndërto URL-et (Codespaces vs lokal) ───────────────────
+if [ -n "${CODESPACES:-}" ] && [ -n "${CODESPACE_NAME:-}" ]; then
+  DOMAIN="${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN:-github.dev}"
+  FRONT_URL="https://${CODESPACE_NAME}-5173.${DOMAIN}"
+  BACK_URL="https://${CODESPACE_NAME}-8000.${DOMAIN}"
+  IS_CODESPACE=true
+else
+  FRONT_URL="http://localhost:5173"
+  BACK_URL="http://localhost:8000"
+  IS_CODESPACE=false
 fi
 
-# ── 8. Mesazhi final ─────────────────────────────────────────
+# ── 8. Hap shfletuesin (vetëm lokal) ─────────────────────────
+if [ "$IS_CODESPACE" = false ]; then
+  if command -v xdg-open &>/dev/null; then
+    xdg-open "$FRONT_URL" &
+  elif command -v open &>/dev/null; then
+    open "$FRONT_URL" &
+  fi
+fi
+
+# ── 9. Mesazhi final ─────────────────────────────────────────
 echo ""
 echo -e "${G}═══════════════════════════════════════════════════${NC}"
 echo -e "${G}  Jurist Pro është aktiv!${NC}"
 echo -e "${G}═══════════════════════════════════════════════════${NC}"
 echo ""
-echo -e "  ${C}Frontend :${NC}  http://localhost:5173"
-echo -e "  ${C}Backend  :${NC}  http://localhost:8000"
-echo -e "  ${C}API Docs :${NC}  http://localhost:8000/docs"
+echo -e "  ${C}Frontend :${NC}  ${FRONT_URL}"
+echo -e "  ${C}Backend  :${NC}  ${BACK_URL}"
+echo -e "  ${C}API Docs :${NC}  ${BACK_URL}/docs"
 echo ""
+if [ "$IS_CODESPACE" = true ]; then
+  echo -e "  ${Y}Codespaces:${NC} Ports 5173 dhe 8000 duhet të jenë Public"
+  echo -e "             (Ports tab → klikoni 🔒 → Change Port Visibility → Public)"
+  echo ""
+fi
 echo -e "  ${Y}Login    :${NC}  admin@jurist.al  /  Admin123!"
 echo ""
 echo -e "  ${R}Shtyp Ctrl+C për të ndalur të gjitha shërbimet.${NC}"

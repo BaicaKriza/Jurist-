@@ -1,0 +1,41 @@
+{
+  "name": "Jurist Pro",
+  "image": "mcr.microsoft.com/devcontainers/universal:2",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/node:1": { "version": "20" },
+    "ghcr.io/devcontainers/features/python:1": { "version": "3.11" }
+  },
+  "forwardPorts": [5173, 8000, 5432],
+  "portsAttributes": {
+    "5173": {
+      "label": "Jurist Frontend",
+      "onAutoForward": "openBrowser",
+      "visibility": "public"
+    },
+    "8000": {
+      "label": "Jurist Backend API",
+      "onAutoForward": "notify",
+      "visibility": "public"
+    },
+    "5432": {
+      "label": "PostgreSQL",
+      "onAutoForward": "silent"
+    }
+  },
+  "postCreateCommand": "npm install && npm run install:all",
+  "postStartCommand": "bash Jurist-Start.sh",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "bradlc.vscode-tailwindcss",
+        "esbenp.prettier-vscode",
+        "dbaeumer.vscode-eslint"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "./backend/.venv/bin/python"
+      }
+    }
+  }
+}

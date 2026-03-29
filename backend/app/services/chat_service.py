@@ -22,7 +22,6 @@ from app.core.config import settings
 from app.models.procedure import Procedure
 from app.models.document import Document, DocumentStatus
 from app.models.analysis import RequiredDocumentItem
-from app.models.matching import MatchingReport
 
 logger = logging.getLogger(__name__)
 

@@ -45,7 +45,7 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   return (
-    <Routes>
+    <>
       <Route
         path="/login"
         element={
@@ -85,5 +85,6 @@ export default function App() {
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
     <ChatWidget />
+    </>
   )
 }

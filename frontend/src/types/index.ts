@@ -243,6 +243,19 @@ export interface MatchingResult {
   status?: MatchingStatus
 }
 
+export interface MatchingReportItem {
+  required_document_id: string
+  required_document_name: string
+  category: string
+  mandatory: boolean
+  match_status: string
+  confidence_score?: number
+  matched_document_id?: string
+  matched_document_title?: string
+  notes?: string
+  retrieval_guide?: string
+}
+
 export interface MatchingReport {
   procedure_id: string
   company_id: string
@@ -316,6 +329,7 @@ export interface PaginatedResponse<T> {
   items: T[]
   total: number
   page: number
+  pages: number
   page_size: number
   total_pages: number
 }

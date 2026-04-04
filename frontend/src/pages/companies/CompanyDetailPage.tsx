@@ -30,7 +30,7 @@ function docStatusBadge(status: string) {
   }
 }
 
-interface UploadDialogProps { open: boolean; onClose: () => void; companyId: string; folderId?: string }
+interface UploadDialogProps { open: boolean; onClose: () => void; companyId: string; folderId?: string | number }
 function UploadDialog({ open, onClose, companyId, folderId }: UploadDialogProps) {
   const qc = useQueryClient()
   const { success, error } = useToast()
@@ -110,10 +110,10 @@ function UploadDialog({ open, onClose, companyId, folderId }: UploadDialogProps)
   )
 }
 
-function FolderNode({ folder, selectedFolderId, onSelect }: { folder: FolderTree; selectedFolderId?: string; onSelect: (id: string) => void }) {
+function FolderNode({ folder, selectedFolderId, onSelect }: { folder: FolderTree; selectedFolderId?: string | number; onSelect: (id: string | number) => void }) {
   const [expanded, setExpanded] = useState(true)
   const hasChildren = folder.children && folder.children.length > 0
-  const isSelected = selectedFolderId === folder.id
+  const isSelected = String(selectedFolderId) === String(folder.id)
   return (
     <div>
       <button
@@ -138,7 +138,7 @@ export default function CompanyDetailPage() {
   const { id } = useParams<{ id: string }>()
   const companyId = id!
   const [uploadOpen, setUploadOpen] = useState(false)
-  const [selectedFolderId, setSelectedFolderId] = useState<string | undefined>()
+  const [selectedFolderId, setSelectedFolderId] = useState<string | number | undefined>()
   const qc = useQueryClient()
   const { success, error } = useToast()
 

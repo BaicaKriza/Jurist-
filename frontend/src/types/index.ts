@@ -33,21 +33,26 @@ export interface Company {
   id: string
   name: string
   nipt: string
-  administrator_name: string
+  legal_form?: string
+  administrator_name?: string
   address?: string
   phone?: string
   email?: string
   is_active: boolean
-  status: CompanyStatus
+  status?: string
   notes?: string
   created_at: string
   updated_at: string
 }
 
 export interface CompanyStats {
-  company_id: number
+  company_id: string
+  company_name?: string
   total_documents: number
-  active_certificates: number
+  active_documents: number
+  expired_documents: number
+  review_required?: number
+  active_certificates?: number
   expiring_soon: number
   expired: number
   total_folders: number
@@ -58,7 +63,8 @@ export interface CompanyStats {
 
 export interface Folder {
   id: number
-  company_id: number
+  company_id: string
+  company_name?: string
   name: string
   parent_id?: number
   path: string
@@ -90,7 +96,7 @@ export interface Document {
   folder_id?: string
   title: string
   doc_type?: string
-  status: DocumentStatus
+  status: string
   file_name: string
   file_size?: number
   mime_type?: string
@@ -121,18 +127,22 @@ export type ProcedureType =
 export type AnalysisStatus = 'pending' | 'processing' | 'completed' | 'failed'
 
 export interface ProcedureDocument {
-  id: number
-  procedure_id: number
-  file_name: string
-  file_url: string
-  file_type: string
-  file_size: number
-  downloaded: boolean
-  downloaded_at?: string
+  id: string
+  procedure_id: string
+  title?: string
+  document_url?: string
+  file_name?: string
+  file_path?: string
+  mime_type?: string
+  checksum?: string
+  ai_summary?: string
+  is_uploaded: boolean
+  download_url?: string
+  created_at: string
 }
 
 export interface Procedure {
-  id: number
+  id: string
   reference_number: string
   title: string
   contracting_authority: string
@@ -161,57 +171,86 @@ export type MatchingStatus =
   | 'NOT_APPLICABLE'
 
 export interface RequiredDocumentItem {
-  id: number
-  analysis_id: number
-  document_name: string
-  document_description: string
-  legal_basis?: string
-  is_mandatory: boolean
+  id: string
+  procedure_id: string
+  name: string
+  document_name?: string
+  document_description?: string
   category: string
+  description?: string
+  mandatory: boolean
+  is_mandatory?: boolean
+  legal_basis?: string
+  issuer_type?: string
+  source_hint?: string
+  validity_rule?: string
   notes?: string
+  created_at?: string
 }
 
 export interface ProcedureAnalysis {
-  id: number
-  procedure_id: number
-  summary: string
-  legal_requirements: string
-  technical_requirements: string
-  financial_requirements: string
-  risk_assessment: string
-  recommendation: string
-  required_documents: RequiredDocumentItem[]
-  analyzed_at: string
-  model_used: string
+  id: string
+  procedure_id: string
+  analysis_type: string
+  summary?: string
+  legal_notes?: string
+  technical_notes?: string
+  financial_notes?: string
+  risk_level: string
+  risk_assessment?: string
+  recommendation?: string
+  recommended_action?: string
+  legal_requirements?: string
+  technical_requirements?: string
+  financial_requirements?: string
+  ai_output_json?: object
+  created_at: string
+  analyzed_at?: string
+  model_used?: string
+  required_documents?: RequiredDocumentItem[]
   procedure?: Procedure
 }
 
 // ─── Matching ─────────────────────────────────────────────────────────────────
 
 export interface MatchingResult {
-  id: number
-  report_id: number
-  required_document_id: number
-  required_document: RequiredDocumentItem
-  matched_document_id?: number
-  matched_document?: Document
-  status: MatchingStatus
+  id: string
+  procedure_id: string
+  company_id: string
+  required_document_item_id: string
+  matched_document_id?: string
+  match_status: string
   confidence_score?: number
   notes?: string
+  created_at: string
+  required_document_name?: string
+  required_document?: RequiredDocumentItem
+  matched_document?: Document
+  matched_document_title?: string
+  status?: MatchingStatus
 }
 
 export interface MatchingReport {
   id: number
   procedure_id: number
-  company_id: number
+  company_id: string
+  company_name?: string
   company: Company
   procedure: Procedure
   results: MatchingResult[]
   total_required: number
-  total_found: number
-  total_missing: number
-  total_expiring: number
-  total_expired: number
+  found_valid: number
+  found_expired: number
+  found_partial: number
+  missing: number
+  review_required?: number
+  total_found?: number
+  total_missing?: number
+  total_expiring?: number
+  total_expired?: number
+  readiness_score: number
+  items: MatchingReportItem[]
+  generated_at: string
   created_at: string
   updated_at: string
 }
@@ -273,14 +312,19 @@ export interface PaginatedResponse<T> {
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
 export interface DashboardStats {
+  total_companies: number
   active_companies: number
   total_documents: number
-  expiring_soon: number
-  new_procedures_today: number
-  expired_documents: number
-  pending_analyses: number
-  recent_expiring_documents: Document[]
-  recent_procedures: Procedure[]
+  total_procedures: number
+  total_analyses: number
+  total_users?: number
+  active_users: number
+  expired_documents?: number
+  expiring_soon?: number
+  new_procedures_today?: number
+  pending_analyses?: number
+  recent_expiring_documents?: Document[]
+  recent_procedures?: Procedure[]
 }
 
 // ─── Form Types ───────────────────────────────────────────────────────────────
@@ -288,7 +332,8 @@ export interface DashboardStats {
 export interface CompanyFormData {
   name: string
   nipt: string
-  administrator_name: string
+  legal_form?: string
+  administrator_name?: string
   address?: string
   phone?: string
   email?: string
@@ -297,7 +342,8 @@ export interface CompanyFormData {
 }
 
 export interface DocumentUploadData {
-  company_id: number
+  company_id: string
+  company_name?: string
   folder_id?: number
   title: string
   document_type: DocumentType
@@ -320,10 +366,11 @@ export interface UserFormData {
 // ─── Filter Types ─────────────────────────────────────────────────────────────
 
 export interface DocumentFilters {
-  company_id?: number
+  company_id?: number | string
   document_type?: DocumentType
-  status?: DocumentStatus
-  folder_id?: number
+  doc_type?: string
+  status?: string
+  folder_id?: number | string
   search?: string
   expiry_from?: string
   expiry_to?: string
@@ -332,10 +379,13 @@ export interface DocumentFilters {
 }
 
 export interface ProcedureFilters {
-  procedure_type?: ProcedureType
+  procedure_type?: ProcedureType | string
   authority?: string
-  status?: ProcedureStatus
+  authority_name?: string
+  status?: ProcedureStatus | string
   analysis_status?: AnalysisStatus
+  source_name?: string
+  cpv_code?: string
   date_from?: string
   date_to?: string
   search?: string

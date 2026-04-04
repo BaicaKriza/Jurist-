@@ -14,7 +14,7 @@ import { companyService } from '@/services/companyService'
 import { useToast } from '@/hooks/useToast'
 import type { DocumentStatus } from '@/types'
 
-function statusBadge(status: DocumentStatus) {
+function statusBadge(status: string) {
   switch (status) {
     case 'ACTIVE':          return <Badge variant="success">Aktiv</Badge>
     case 'EXPIRED':         return <Badge variant="destructive">Skaduar</Badge>

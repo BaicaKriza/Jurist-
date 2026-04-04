@@ -95,7 +95,7 @@ async function deleteUser(id: string): Promise<void> {
 const userSchema = z.object({
   email: z.string().email('Email i pavlefshëm'),
   full_name: z.string().min(2, 'Emri duhet të paktën 2 karaktere'),
-  role: z.enum(['admin', 'manager', 'viewer'] as const),
+  role: z.enum(['superadmin', 'admin', 'manager', 'viewer'] as const),
   password: z.string().min(8, 'Fjalëkalimi duhet të paktën 8 karaktere').optional().or(z.literal('')),
   is_active: z.boolean(),
 })
@@ -103,6 +103,7 @@ const userSchema = z.object({
 type UserFormValues = z.infer<typeof userSchema>
 
 const ROLE_LABELS: Record<UserRole, string> = {
+  superadmin: 'Superadmin',
   admin: 'Administrator',
   manager: 'Menaxher',
   viewer: 'Shikues',
@@ -322,7 +323,7 @@ export default function AdminPage() {
   )
 
   const activeCount = (users ?? []).filter((u) => u.is_active).length
-  const adminCount = (users ?? []).filter((u) => u.role === 'admin').length
+  const adminCount = (users ?? []).filter((u) => u.roles?.includes('admin')).length
 
   return (
     <div className="space-y-6">

@@ -45,9 +45,9 @@ import { useToast } from '@/hooks/useToast'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import type { ProcedureStatus, DocumentCategory } from '@/types'
+import type { DocumentCategory } from '@/types'
 
-function statusBadge(status: ProcedureStatus) {
+function statusBadge(status: string) {
   switch (status) {
     case 'OPEN': return <Badge variant="success">Hapur</Badge>
     case 'CLOSED': return <Badge variant="secondary">Mbyllur</Badge>

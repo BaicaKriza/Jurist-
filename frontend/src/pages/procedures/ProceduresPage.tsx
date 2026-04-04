@@ -49,7 +49,7 @@ const STATUS_LABELS: Record<ProcedureStatus, string> = {
   UNKNOWN: 'I panjohur',
 }
 
-function statusBadge(status: ProcedureStatus) {
+function statusBadge(status: string) {
   switch (status) {
     case 'OPEN':
       return <Badge variant="success">Hapur</Badge>

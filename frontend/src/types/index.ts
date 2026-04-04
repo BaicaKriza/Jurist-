@@ -73,7 +73,7 @@ export interface FolderTree extends Folder {
 
 // ─── Document ─────────────────────────────────────────────────────────────────
 
-export type DocumentStatus = 'valid' | 'expiring_soon' | 'expired' | 'pending' | 'invalid'
+export type DocumentStatus = 'ACTIVE' | 'EXPIRED' | 'ARCHIVED' | 'REVIEW_REQUIRED'
 export type DocumentType =
   | 'certificate'
   | 'license'
@@ -109,7 +109,7 @@ export interface Document {
 
 // ─── Procedure ────────────────────────────────────────────────────────────────
 
-export type ProcedureStatus = 'open' | 'closed' | 'cancelled' | 'awarded' | 'pending'
+export type ProcedureStatus = 'OPEN' | 'CLOSED' | 'CANCELLED' | 'AWARDED' | 'UNKNOWN'
 export type ProcedureType =
   | 'open_tender'
   | 'restricted_tender'
@@ -342,3 +342,11 @@ export interface ProcedureFilters {
   page?: number
   page_size?: number
 }
+
+export type DocumentCategory = 'ADMINISTRATIVE' | 'TECHNICAL' | 'FINANCIAL' | 'PROFESSIONAL'
+
+export interface ProcedureCreate { source_name?: string; source_url?: string; reference_no?: string; notice_no?: string; authority_name?: string; object_description?: string; procedure_type?: string; contract_type?: string; cpv_code?: string; fund_limit?: number; currency?: string; publication_date?: string; opening_date?: string; closing_date?: string; status?: string }
+
+export interface RequiredDocumentCreate { name: string; category?: string; description?: string; mandatory?: boolean; issuer_type?: string; source_hint?: string; validity_rule?: string }
+
+export interface DocumentUploadResponse { id: string; title: string; file_name: string; file_size?: number; mime_type?: string; status: string; message?: string }

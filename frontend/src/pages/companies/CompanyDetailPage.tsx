@@ -20,7 +20,7 @@ import { documentService } from '@/services/documentService'
 import { useToast } from '@/hooks/useToast'
 import type { Document, DocumentStatus, FolderTree } from '@/types'
 
-function docStatusBadge(status: DocumentStatus) {
+function docStatusBadge(status: string) {
   switch (status) {
     case 'ACTIVE':          return <Badge variant="success">Aktiv</Badge>
     case 'EXPIRED':         return <Badge variant="destructive">Skaduar</Badge>

@@ -13,7 +13,7 @@ export const documentService = {
     formData.append('file', payload.file)
     formData.append('title', payload.title)
     if (payload.doc_type) formData.append('doc_type', payload.doc_type)
-    if (payload.folder_id) formData.append('folder_id', payload.folder_id)
+    if (payload.folder_id != null) formData.append('folder_id', String(payload.folder_id))
     if (payload.issuer) formData.append('issuer', payload.issuer)
     if (payload.issue_date) formData.append('issue_date', payload.issue_date)
     if (payload.expiry_date) formData.append('expiry_date', payload.expiry_date)
@@ -28,7 +28,7 @@ export const documentService = {
   },
 
   async getDocuments(
-    companyId: string,
+    companyId: string | number,
     filters?: Omit<DocumentFilters, 'company_id'>
   ): Promise<PaginatedResponse<Document>> {
     const { data } = await api.get(`/companies/${companyId}/documents`, { params: filters })
@@ -45,11 +45,11 @@ export const documentService = {
     return data
   },
 
-  async deleteDocument(id: string): Promise<void> {
+  async deleteDocument(id: string | number): Promise<void> {
     await api.delete(`/documents/${id}`)
   },
 
-  getDownloadUrl(id: string): string {
+  getDownloadUrl(id: string | number): string {
     // Returns redirect – just return the URL to open directly
     return `${api.defaults.baseURL}/documents/${id}/download`
   },

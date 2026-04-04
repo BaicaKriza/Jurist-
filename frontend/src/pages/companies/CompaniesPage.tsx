@@ -53,7 +53,7 @@ const companySchema = z.object({
 
 type CompanyFormValues = z.infer<typeof companySchema>
 
-function statusBadge(status: CompanyStatus) {
+function statusBadge(status: string | undefined) {
   switch (status) {
     case 'active':
       return <Badge variant="success">Aktiv</Badge>

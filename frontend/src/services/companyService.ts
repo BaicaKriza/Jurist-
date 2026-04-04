@@ -61,7 +61,7 @@ export const companyService = {
     return data
   },
 
-  async getCompanyFolders(id: number): Promise<FolderTree[]> {
+  async getCompanyFolders(id: string | number): Promise<FolderTree[]> {
     const { data } = await api.get(`/companies/${id}/folders`)
     return data
   },

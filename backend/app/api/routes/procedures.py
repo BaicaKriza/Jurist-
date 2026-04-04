@@ -506,3 +506,19 @@ def delete_requirement(
     db.delete(item)
     db.commit()
     logger.info(f"Requirement {requirement_id} deleted from procedure {procedure_id}")
+
+
+# ── Risk Score ──────────────────────────────────────────────────────────────
+
+@router.get(
+    "/{procedure_id}/risk-score",
+    summary="Calculate risk score for a procedure",
+)
+def get_risk_score(
+    procedure_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Analyse bulletin history and return a risk score with breakdown."""
+    from app.services.risk_score_service import calculate_risk_score
+    return calculate_risk_score(db, procedure_id)

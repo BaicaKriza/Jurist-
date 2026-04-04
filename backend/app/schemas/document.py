@@ -32,6 +32,7 @@ class DocumentResponse(BaseModel):
 
     id: str
     company_id: str
+    company: Optional[dict] = None
     folder_id: Optional[str] = None
     title: str
     doc_type: Optional[str] = None

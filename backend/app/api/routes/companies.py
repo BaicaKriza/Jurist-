@@ -115,6 +115,38 @@ def delete_company(
     logger.info(f"Company {company_id} deleted")
 
 
+@router.patch(
+    "/{company_id}/deactivate",
+    response_model=CompanyResponse,
+    summary="Deactivate a company (soft delete)",
+)
+def deactivate_company(
+    company_id: str,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_superadmin),
+) -> CompanyResponse:
+    service = CompanyService(db)
+    company = service.deactivate_company(company_id)
+    logger.info(f"Company {company_id} deactivated")
+    return CompanyResponse.model_validate(company)
+
+
+@router.patch(
+    "/{company_id}/activate",
+    response_model=CompanyResponse,
+    summary="Activate a company",
+)
+def activate_company(
+    company_id: str,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_superadmin),
+) -> CompanyResponse:
+    service = CompanyService(db)
+    company = service.activate_company(company_id)
+    logger.info(f"Company {company_id} activated")
+    return CompanyResponse.model_validate(company)
+
+
 @router.get(
     "/{company_id}/stats",
     response_model=CompanyStatsResponse,

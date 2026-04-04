@@ -4,12 +4,10 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
-from sqlalchemy import select, func
 
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.user import User
-from app.models.document import Document
 from app.schemas.document import (
     DocumentCreate,
     DocumentResponse,
@@ -24,52 +22,33 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["documents"])
 
 
-# ---------------------------------------------------------------------------
-# Global documents list (all companies, auth required)
-# ---------------------------------------------------------------------------
-
 @router.get(
     "/documents",
     response_model=dict,
-    summary="List all documents (optional company filter)",
+    summary="List documents across companies",
 )
 def list_all_documents(
-    company_id: Optional[str] = Query(None, description="Filter by company ID"),
+    company_id: Optional[str] = Query(None, description="Filter by company id"),
     folder_id: Optional[str] = Query(None, description="Filter by folder ID"),
-    status_filter: Optional[str] = Query(None, alias="status", description="Filter by status"),
+    status_filter: Optional[str] = Query(None, alias="status", description="Filter by document status"),
     search: Optional[str] = Query(None, description="Search in title, reference or issuer"),
-    page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(20, ge=1, le=100, description="Items per page"),
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ) -> dict:
-    """Return documents across all companies, with optional filters."""
-    from app.models.company import Company
-
-    query = select(Document)
-    if company_id:
-        query = query.where(Document.company_id == company_id)
-    if folder_id:
-        query = query.where(Document.folder_id == folder_id)
-    if status_filter:
-        query = query.where(Document.status == status_filter)
-    if search:
-        query = query.where(
-            Document.title.ilike(f"%{search}%") |
-            Document.reference_no.ilike(f"%{search}%") |
-            Document.issuer.ilike(f"%{search}%")
-        )
-
-    total = db.execute(select(func.count()).select_from(query.subquery())).scalar() or 0
-    documents = db.execute(
-        query.order_by(Document.created_at.desc())
-        .offset((page - 1) * page_size)
-        .limit(page_size)
-    ).scalars().all()
-
     service = DocumentService(db)
+    documents, total = service.get_documents(
+        company_id=company_id,
+        folder_id=folder_id,
+        status_filter=status_filter,
+        search=search,
+        page=page,
+        page_size=page_size,
+    )
+    items = [service.to_response(doc) for doc in documents]
     return {
-        "items": [service.to_response(doc) for doc in documents],
+        "items": items,
         "total": total,
         "page": page,
         "page_size": page_size,

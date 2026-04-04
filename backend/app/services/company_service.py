@@ -115,6 +115,7 @@ class CompanyService:
                 "legal_form": c.legal_form,
                 "administrator_name": c.administrator_name,
                 "is_active": c.is_active,
+                "status": c.status,
                 "created_at": c.created_at,
                 "document_count": doc_counts.get(c.id, 0),
                 "expired_count": expired_counts.get(c.id, 0),
@@ -135,6 +136,20 @@ class CompanyService:
                 )
         for key, value in update_data.items():
             setattr(company, key, value)
+        self.db.commit()
+        self.db.refresh(company)
+        return company
+
+    def deactivate_company(self, company_id: str) -> Company:
+        company = self.get_company(company_id)
+        company.is_active = False
+        self.db.commit()
+        self.db.refresh(company)
+        return company
+
+    def activate_company(self, company_id: str) -> Company:
+        company = self.get_company(company_id)
+        company.is_active = True
         self.db.commit()
         self.db.refresh(company)
         return company

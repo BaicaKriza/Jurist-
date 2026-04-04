@@ -40,6 +40,7 @@ class CompanyResponse(BaseModel):
     address: Optional[str] = None
     notes: Optional[str] = None
     is_active: bool
+    status: str
     created_at: datetime
     updated_at: datetime
 
@@ -64,6 +65,7 @@ class CompanyListResponse(BaseModel):
     legal_form: Optional[str] = None
     administrator_name: Optional[str] = None
     is_active: bool
+    status: str
     created_at: datetime
     document_count: int = 0
     expired_count: int = 0

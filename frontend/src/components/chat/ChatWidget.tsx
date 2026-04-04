@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
+import { useMatch } from 'react-router-dom'
 import { MessageCircle, X, Send, Minimize2, Bot, User, Loader2, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -42,6 +43,15 @@ function renderMarkdown(text: string): string {
 
 export function ChatWidget({ companyId, procedureId }: ChatWidgetProps) {
   const { token } = useAuthStore()
+  const procedureRouteMatch = useMatch('/procedures/:id')
+  const companyRouteMatch = useMatch('/companies/:id')
+  const currentProcedureId = procedureId ?? procedureRouteMatch?.params.id
+  const currentCompanyId = companyId ?? companyRouteMatch?.params.id
+
+  const getStorageKey = (companyId?: string, procedureId?: string) =>
+    `jurist-chat:${companyId ?? 'global'}:${procedureId ?? 'global'}`
+  const storageKey = getStorageKey(currentCompanyId, currentProcedureId)
+
   const [open, setOpen] = useState(false)
   const [minimized, setMinimized] = useState(false)
   const [messages, setMessages] = useState<Message[]>([WELCOME])
@@ -55,6 +65,32 @@ export function ChatWidget({ companyId, procedureId }: ChatWidgetProps) {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  // Load saved chat history for the current context
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(storageKey)
+      if (stored) {
+        const parsed = JSON.parse(stored) as Message[]
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setMessages(parsed)
+          return
+        }
+      }
+    } catch {
+      // ignore invalid storage data
+    }
+    setMessages([WELCOME])
+  }, [storageKey])
+
+  // Persist chat history for the current context
+  useEffect(() => {
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(messages))
+    } catch {
+      // Ignore storage errors
+    }
+  }, [messages, storageKey])
 
   const sendMessage = useCallback(async () => {
     const text = input.trim()
@@ -84,8 +120,8 @@ export function ChatWidget({ companyId, procedureId }: ChatWidgetProps) {
         },
         body: JSON.stringify({
           messages: history,
-          company_id: companyId ?? null,
-          procedure_id: procedureId ?? null,
+          company_id: currentCompanyId ?? null,
+          procedure_id: currentProcedureId ?? null,
         }),
         signal: abortRef.current.signal,
       })
@@ -135,7 +171,7 @@ export function ChatWidget({ companyId, procedureId }: ChatWidgetProps) {
       setStreaming(false)
       abortRef.current = null
     }
-  }, [input, messages, streaming, token, companyId, procedureId])
+  }, [input, messages, streaming, token, currentCompanyId, currentProcedureId])
 
   const handleKey = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -148,6 +184,11 @@ export function ChatWidget({ companyId, procedureId }: ChatWidgetProps) {
     if (streaming) abortRef.current?.abort()
     setMessages([WELCOME])
     setStreaming(false)
+    try {
+      localStorage.removeItem(storageKey)
+    } catch {
+      // ignore
+    }
   }
 
   if (!token) return null

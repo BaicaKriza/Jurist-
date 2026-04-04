@@ -10,6 +10,7 @@ import {
   ChevronRight,
   Pencil,
   Trash2,
+  MoreVertical,
   X,
 } from 'lucide-react'
 import { useForm } from 'react-hook-form'
@@ -27,24 +28,41 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { LoadingSpinner } from '@/components/common/LoadingSpinner'
 import { companyService } from '@/services/companyService'
 import { useToast } from '@/hooks/useToast'
-import type { Company, CompanyFormData } from '@/types'
+import type { Company, CompanyFormData, CompanyStatus } from '@/types'
 
 const companySchema = z.object({
   name: z.string().min(2, 'Emri duhet të jetë të paktën 2 karaktere'),
   nipt: z.string().min(3, 'NIPT-i është i detyrueshëm'),
-  legal_form: z.string().optional(),
-  administrator_name: z.string().optional(),
+  administrator_name: z.string().min(2, 'Administratori është i detyrueshëm'),
   address: z.string().optional(),
   phone: z.string().optional(),
   email: z.string().email('Email i pavlefshëm').optional().or(z.literal('')),
-  is_active: z.boolean().default(true),
+  status: z.enum(['active', 'inactive', 'suspended'] as const),
   notes: z.string().optional(),
 })
 
 type CompanyFormValues = z.infer<typeof companySchema>
+
+function statusBadge(status: CompanyStatus) {
+  switch (status) {
+    case 'active':
+      return <Badge variant="success">Aktiv</Badge>
+    case 'inactive':
+      return <Badge variant="secondary">Joaktiv</Badge>
+    case 'suspended':
+      return <Badge variant="destructive">Pezulluar</Badge>
+  }
+}
 
 interface CompanyFormDialogProps {
   open: boolean
@@ -60,109 +78,143 @@ function CompanyFormDialog({ open, onClose, editCompany }: CompanyFormDialogProp
     register,
     handleSubmit,
     reset,
-    formState: { errors, isSubmitting },
+    setValue,
+    watch,
+    formState: { errors },
   } = useForm<CompanyFormValues>({
     resolver: zodResolver(companySchema),
     defaultValues: editCompany
       ? {
           name: editCompany.name,
           nipt: editCompany.nipt,
-          legal_form: editCompany.legal_form ?? '',
-          administrator_name: editCompany.administrator_name ?? '',
+          administrator_name: editCompany.administrator_name,
           address: editCompany.address ?? '',
           phone: editCompany.phone ?? '',
           email: editCompany.email ?? '',
-          is_active: editCompany.is_active,
+          status: editCompany.status ? 'active' : 'inactive',
           notes: editCompany.notes ?? '',
         }
-      : { is_active: true },
+      : { status: 'active' },
   })
 
-  const mutation = useMutation({
-    mutationFn: (data: CompanyFormValues) => {
-      const payload: CompanyFormData = {
-        name: data.name,
-        nipt: data.nipt,
-        legal_form: data.legal_form || undefined,
-        administrator_name: data.administrator_name || undefined,
-        address: data.address || undefined,
-        phone: data.phone || undefined,
-        email: data.email || undefined,
-        is_active: data.is_active,
-        notes: data.notes || undefined,
-      }
-      return editCompany
-        ? companyService.updateCompany(editCompany.id, payload)
-        : companyService.createCompany(payload)
-    },
+  const statusValue = watch('status')
+
+  const createMutation = useMutation({
+    mutationFn: (data: CompanyFormData) => companyService.createCompany(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['companies'] })
-      success(
-        editCompany ? 'Kompania u përditësua' : 'Kompania u krijua',
-        editCompany ? 'Ndryshimet u ruajtën.' : 'Kompania e re u shtua me sukses.'
-      )
+      success('Kompania u krijua', 'Kompania u shtua me sukses.')
       reset()
       onClose()
     },
     onError: (err: any) => {
-      error('Gabim', err?.response?.data?.detail ?? 'Operacioni dështoi.')
+      error('Gabim', err?.response?.data?.detail ?? 'Krijimi dështoi.')
     },
   })
 
+  const updateMutation = useMutation({
+    mutationFn: (data: CompanyFormData) => companyService.updateCompany(editCompany!.id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['companies'] })
+      success('Kompania u përditësua', 'Ndryshimet u ruajtën me sukses.')
+      onClose()
+    },
+    onError: (err: any) => {
+      error('Gabim', err?.response?.data?.detail ?? 'Përditësimi dështoi.')
+    },
+  })
+
+  const isSubmitting = createMutation.isPending || updateMutation.isPending
+
+  function onSubmit(values: CompanyFormValues) {
+    const payload: CompanyFormData = {
+      name: values.name,
+      nipt: values.nipt,
+      administrator_name: values.administrator_name,
+      address: values.address || undefined,
+      phone: values.phone || undefined,
+      email: values.email || undefined,
+      is_active: values.status === 'active',
+      notes: values.notes || undefined,
+    }
+    if (editCompany) {
+      updateMutation.mutate(payload)
+    } else {
+      createMutation.mutate(payload)
+    }
+  }
+
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) { reset(); onClose() } }}>
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose() }}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{editCompany ? 'Edito Kompaninë' : 'Kompani e Re'}</DialogTitle>
+          <DialogTitle>{editCompany ? 'Edito Kompaninë' : 'Shto Kompani të Re'}</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit((d) => mutation.mutate(d))} className="space-y-4 mt-2">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="name">Emri *</Label>
-              <Input id="name" {...register('name')} placeholder="Emri i kompanisë" />
-              {errors.name && <p className="text-xs text-red-500">{errors.name.message}</p>}
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 mt-2">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="col-span-2 space-y-1.5">
+              <Label htmlFor="name">Emri i Kompanisë *</Label>
+              <Input id="name" {...register('name')} placeholder="Emri i plotë" />
+              {errors.name && <p className="text-xs text-red-600">{errors.name.message}</p>}
             </div>
+
             <div className="space-y-1.5">
               <Label htmlFor="nipt">NIPT *</Label>
-              <Input id="nipt" {...register('nipt')} placeholder="L12345678A" />
-              {errors.nipt && <p className="text-xs text-red-500">{errors.nipt.message}</p>}
+              <Input id="nipt" {...register('nipt')} placeholder="Kodi NIPT" />
+              {errors.nipt && <p className="text-xs text-red-600">{errors.nipt.message}</p>}
             </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
+
             <div className="space-y-1.5">
-              <Label htmlFor="administrator_name">Administrator</Label>
-              <Input id="administrator_name" {...register('administrator_name')} placeholder="Emri i administratorit" />
+              <Label htmlFor="status">Statusi *</Label>
+              <Select
+                value={statusValue}
+                onValueChange={(v) => setValue('status', v as CompanyStatus)}
+              >
+                <SelectTrigger id="status">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Aktiv</SelectItem>
+                  <SelectItem value="inactive">Joaktiv</SelectItem>
+                  <SelectItem value="suspended">Pezulluar</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="legal_form">Forma Ligjore</Label>
-              <Input id="legal_form" {...register('legal_form')} placeholder="SH.P.K., S.A. ..." />
+
+            <div className="col-span-2 space-y-1.5">
+              <Label htmlFor="administrator">Administratori *</Label>
+              <Input id="administrator" {...register('administrator_name')} placeholder="Emri i administratorit" />
+              {errors.administrator_name && <p className="text-xs text-red-600">{errors.administrator_name.message}</p>}
             </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
+
             <div className="space-y-1.5">
               <Label htmlFor="email">Email</Label>
               <Input id="email" type="email" {...register('email')} placeholder="info@kompania.al" />
-              {errors.email && <p className="text-xs text-red-500">{errors.email.message}</p>}
+              {errors.email && <p className="text-xs text-red-600">{errors.email.message}</p>}
             </div>
+
             <div className="space-y-1.5">
               <Label htmlFor="phone">Telefon</Label>
-              <Input id="phone" {...register('phone')} placeholder="+355 ..." />
+              <Input id="phone" {...register('phone')} placeholder="+355 XX XXX XXXX" />
+            </div>
+
+            <div className="col-span-2 space-y-1.5">
+              <Label htmlFor="address">Adresa</Label>
+              <Input id="address" {...register('address')} placeholder="Adresa e kompanisë" />
+            </div>
+
+            <div className="col-span-2 space-y-1.5">
+              <Label htmlFor="notes">Shënime</Label>
+              <Input id="notes" {...register('notes')} placeholder="Shënime shtesë (opsionale)" />
             </div>
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="address">Adresa</Label>
-            <Input id="address" {...register('address')} placeholder="Adresa e kompanisë" />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="notes">Shënime</Label>
-            <Input id="notes" {...register('notes')} placeholder="Shënime opsionale" />
-          </div>
+
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => { reset(); onClose() }}>
+            <Button type="button" variant="outline" onClick={onClose}>
               Anulo
             </Button>
-            <Button type="submit" disabled={isSubmitting || mutation.isPending}>
-              {editCompany ? 'Ruaj Ndryshimet' : 'Krijo Kompaninë'}
+            <Button type="submit" loading={isSubmitting}>
+              {editCompany ? 'Ruaj Ndryshimet' : 'Shto Kompaninë'}
             </Button>
           </DialogFooter>
         </form>
@@ -171,35 +223,37 @@ function CompanyFormDialog({ open, onClose, editCompany }: CompanyFormDialogProp
   )
 }
 
-const PAGE_SIZE = 20
-
 export default function CompaniesPage() {
   const [search, setSearch] = useState('')
-  const [page, setPage] = useState(1)
-  const [createOpen, setCreateOpen] = useState(false)
+  const [dialogOpen, setDialogOpen] = useState(false)
   const [editCompany, setEditCompany] = useState<Company | null>(null)
   const queryClient = useQueryClient()
   const { success, error } = useToast()
 
   const { data, isLoading } = useQuery({
-    queryKey: ['companies', { search, page }],
-    queryFn: () => companyService.getCompanies({ search: search || undefined, page, page_size: PAGE_SIZE }),
+    queryKey: ['companies', search],
+    queryFn: () => companyService.getCompanies({ search: search || undefined, page_size: 50 }),
     staleTime: 30000,
   })
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => companyService.deleteCompany(id),
+    mutationFn: (id: string) => companyService.deactivateCompany(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['companies'] })
-      success('Kompania u fshi', 'Kompania u fshi nga sistemi.')
+      success('Kompania u çaktivizua', 'Kompania u çaktivizua me sukses.')
     },
     onError: (err: any) => {
-      error('Gabim', err?.response?.data?.detail ?? 'Fshirja dështoi.')
+      error('Gabim', err?.response?.data?.detail ?? 'Çaktivizimi dështoi.')
     },
   })
 
+  function handleDelete(company: Company) {
+    if (window.confirm(`A jeni i sigurt që doni të çaktivizoni "${company.name}"?`)) {
+      deleteMutation.mutate(company.id)
+    }
+  }
+
   const companies = data?.items ?? []
-  const totalPages = data?.pages ?? 1
 
   return (
     <div className="space-y-6">
@@ -207,161 +261,128 @@ export default function CompaniesPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Kompanite</h1>
-          <p className="text-sm text-gray-500 mt-1">{data?.total ?? 0} kompani gjithsej</p>
+          <p className="text-sm text-gray-500 mt-1">
+            {data?.total ?? 0} kompani në total
+          </p>
         </div>
-        <Button onClick={() => setCreateOpen(true)}>
+        <Button onClick={() => { setEditCompany(null); setDialogOpen(true) }}>
           <Plus className="h-4 w-4 mr-2" />
-          Kompani e Re
+          Shto Kompani
         </Button>
       </div>
 
       {/* Search */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex gap-3">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Input
-                placeholder="Kërko sipas emrit ose NIPT..."
-                value={search}
-                onChange={(e) => { setSearch(e.target.value); setPage(1) }}
-                className="pl-9"
-              />
-            </div>
-            {search && (
-              <Button variant="outline" size="sm" onClick={() => { setSearch(''); setPage(1) }}>
-                <X className="h-4 w-4" />
-              </Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+      <div className="relative max-w-md">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+        <Input
+          placeholder="Kërko kompani..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="pl-9"
+        />
+        {search && (
+          <button
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700"
+            onClick={() => setSearch('')}
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
+      </div>
 
-      {/* List */}
+      {/* Companies grid */}
       {isLoading ? (
-        <div className="flex justify-center py-16">
+        <div className="flex justify-center py-12">
           <LoadingSpinner size="lg" />
         </div>
       ) : companies.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center py-16 text-gray-400">
             <Building2 className="h-12 w-12 mb-3 text-gray-300" />
-            <p className="text-sm font-medium">
-              {search ? 'Nuk u gjet asnjë kompani' : 'Nuk ka kompani ende'}
+            <p className="text-sm font-medium">Nuk u gjetën kompani</p>
+            <p className="text-xs mt-1">
+              {search ? 'Provoni kërkim tjetër' : 'Shtoni kompaninë e parë'}
             </p>
-            {!search && (
-              <Button className="mt-4" onClick={() => setCreateOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Shto Kompaninë e Parë
-              </Button>
-            )}
           </CardContent>
         </Card>
       ) : (
-        <>
-          <div className="grid gap-3">
-            {companies.map((company) => (
-              <Card key={company.id} className="hover:shadow-md transition-shadow">
-                <CardContent className="p-5">
-                  <div className="flex items-center justify-between gap-4">
-                    <Link
-                      to={`/companies/${company.id}`}
-                      className="flex items-center gap-4 min-w-0 flex-1 group"
-                    >
-                      <div className="h-10 w-10 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
-                        <Building2 className="h-5 w-5 text-blue-600" />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-semibold text-gray-900 group-hover:text-blue-600 truncate">
-                            {company.name}
-                          </h3>
-                          {company.is_active ? (
-                            <Badge variant="success">Aktiv</Badge>
-                          ) : (
-                            <Badge variant="secondary">Joaktiv</Badge>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-4 mt-0.5 text-xs text-gray-500">
-                          <span className="font-mono">{company.nipt}</span>
-                          {company.administrator_name && (
-                            <span>{company.administrator_name}</span>
-                          )}
-                        </div>
-                      </div>
-                    </Link>
-
-                    <div className="flex items-center gap-3 shrink-0">
-                      {/* Doc counts */}
-                      <div className="hidden sm:flex items-center gap-3 text-xs text-gray-500">
-                        <span className="flex items-center gap-1">
-                          <FileText className="h-3.5 w-3.5" />
-                          {company.document_count}
-                        </span>
-                        {company.expired_count > 0 && (
-                          <span className="flex items-center gap-1 text-red-500">
-                            <AlertTriangle className="h-3.5 w-3.5" />
-                            {company.expired_count} skaduar
-                          </span>
-                        )}
-                      </div>
-
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={() => setEditCompany(company as unknown as Company)}
-                        title="Edito"
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        className="text-red-500 hover:text-red-700"
-                        onClick={() => {
-                          if (window.confirm(`A doni të fshini "${company.name}"?`))
-                            deleteMutation.mutate(company.id)
-                        }}
-                        title="Fshi"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                      <Link to={`/companies/${company.id}`}>
-                        <ChevronRight className="h-4 w-4 text-gray-400" />
-                      </Link>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {companies.map((company) => (
+            <Card key={company.id} className="hover:shadow-md transition-shadow">
+              <CardContent className="p-5">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="h-9 w-9 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
+                      <Building2 className="h-4.5 w-4.5 text-blue-600" />
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="font-semibold text-gray-900 text-sm leading-tight truncate">
+                        {company.name}
+                      </h3>
+                      <p className="text-xs text-gray-400 mt-0.5">NIPT: {company.nipt}</p>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                  <div className="flex items-center gap-1 shrink-0 ml-2">
+                    {statusBadge(company.status)}
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => { setEditCompany(company); setDialogOpen(true) }}
+                      title="Edito"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      className="text-red-500 hover:text-red-700"
+                      onClick={() => handleDelete(company)}
+                      title="Fshi"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
 
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between">
-              <p className="text-xs text-gray-500">
-                Faqja {page} nga {totalPages} · {data?.total} kompani
-              </p>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-                  Prapa
-                </Button>
-                <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
-                  Para
-                </Button>
-              </div>
-            </div>
-          )}
-        </>
+                <div className="space-y-1 text-xs text-gray-500 mb-4">
+                  <p>
+                    <span className="font-medium text-gray-700">Administrator: </span>
+                    {company.administrator_name}
+                  </p>
+                  {company.email && (
+                    <p>
+                      <span className="font-medium text-gray-700">Email: </span>
+                      {company.email}
+                    </p>
+                  )}
+                  {company.phone && (
+                    <p>
+                      <span className="font-medium text-gray-700">Tel: </span>
+                      {company.phone}
+                    </p>
+                  )}
+                </div>
+
+                <Link
+                  to={`/companies/${company.id}`}
+                  className="flex items-center justify-between w-full rounded-lg bg-gray-50 hover:bg-blue-50 px-3 py-2 transition-colors"
+                >
+                  <span className="text-xs font-medium text-gray-700 hover:text-blue-700">
+                    Shiko detajet
+                  </span>
+                  <ChevronRight className="h-3.5 w-3.5 text-gray-400" />
+                </Link>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       )}
 
-      <CompanyFormDialog open={createOpen} onClose={() => setCreateOpen(false)} />
-      {editCompany && (
-        <CompanyFormDialog
-          open={!!editCompany}
-          onClose={() => setEditCompany(null)}
-          editCompany={editCompany}
-        />
-      )}
+      <CompanyFormDialog
+        open={dialogOpen}
+        onClose={() => setDialogOpen(false)}
+        editCompany={editCompany}
+      />
     </div>
   )
 }

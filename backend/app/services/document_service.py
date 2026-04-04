@@ -102,15 +102,6 @@ class DocumentService:
         if metadata.expiry_date and metadata.expiry_date < date.today():
             doc_status = DocumentStatus.EXPIRED
 
-        # Auto-generate AI summary from extracted text
-        ai_summary = None
-        if extracted_text:
-            try:
-                from app.services.analysis_service import AnalysisService
-                ai_summary = AnalysisService(self.db).generate_summary(extracted_text)
-            except Exception as e:
-                logger.warning(f"AI summary generation failed: {e}")
-
         document = Document(
             company_id=company_id,
             folder_id=metadata.folder_id,
@@ -128,31 +119,59 @@ class DocumentService:
             version_no=1,
             status=doc_status,
             extracted_text=extracted_text,
-            ai_summary=ai_summary,
             metadata_json=metadata.metadata_json or {},
             created_by=created_by,
         )
         self.db.add(document)
         self.db.commit()
         self.db.refresh(document)
-        logger.info(f"Document {document.id} uploaded for company {company_id}" +
-                    (" (AI summary generated)" if ai_summary else ""))
+        logger.info(f"Document {document.id} uploaded for company {company_id}")
         return document
+
+    def _normalize_status_filter(self, status_filter: Optional[str]) -> Optional[DocumentStatus]:
+        if not status_filter:
+            return None
+        norm = status_filter.strip().lower()
+        mapping = {
+            'valid': DocumentStatus.ACTIVE,
+            'active': DocumentStatus.ACTIVE,
+            'expired': DocumentStatus.EXPIRED,
+            'archived': DocumentStatus.ARCHIVED,
+            'review_required': DocumentStatus.REVIEW_REQUIRED,
+            'reviewrequired': DocumentStatus.REVIEW_REQUIRED,
+            'review': DocumentStatus.REVIEW_REQUIRED,
+            'expiring_soon': DocumentStatus.ACTIVE,
+        }
+        return mapping.get(norm)
 
     def get_documents(
         self,
-        company_id: str,
+        company_id: Optional[str] = None,
         folder_id: Optional[str] = None,
         status_filter: Optional[str] = None,
         search: Optional[str] = None,
         page: int = 1,
         page_size: int = 20,
     ) -> tuple[list[Document], int]:
-        query = select(Document).where(Document.company_id == company_id)
+        query = select(Document)
+        if company_id:
+            query = query.where(Document.company_id == company_id)
         if folder_id:
             query = query.where(Document.folder_id == folder_id)
-        if status_filter:
-            query = query.where(Document.status == status_filter)
+
+        doc_status = self._normalize_status_filter(status_filter)
+        if doc_status:
+            query = query.where(Document.status == doc_status)
+        if status_filter and status_filter.strip().lower() == 'expiring_soon':
+            from datetime import date, timedelta
+            today = date.today()
+            soon = today + timedelta(days=30)
+            query = query.where(
+                Document.status == DocumentStatus.ACTIVE,
+                Document.expiry_date.isnot(None),
+                Document.expiry_date >= today,
+                Document.expiry_date <= soon,
+            )
         if search:
             query = query.where(
                 Document.title.ilike(f"%{search}%") |
@@ -271,7 +290,37 @@ class DocumentService:
             download_url = get_file_url(doc.storage_path)
         except Exception:
             download_url = None
-        return DocumentResponse(
+
+        # map internal DB status to client-friendly status categories
+        status = doc.status
+        if status == DocumentStatus.ACTIVE:
+            from datetime import date, timedelta
+            if doc.expiry_date:
+                today = date.today()
+                if doc.expiry_date < today:
+                    status = "expired"
+                elif doc.expiry_date <= today + timedelta(days=30):
+                    status = "expiring_soon"
+                else:
+                    status = "valid"
+            else:
+                status = "valid"
+        elif status == DocumentStatus.EXPIRED:
+            status = "expired"
+        elif status == DocumentStatus.REVIEW_REQUIRED:
+            status = "expiring_soon"
+        elif status == DocumentStatus.ARCHIVED:
+            status = "invalid"
+
+        company_info = None
+        if getattr(doc, 'company', None):
+            company_obj = doc.company
+            company_info = {
+                'id': company_obj.id,
+                'name': company_obj.name,
+            }
+
+        response = DocumentResponse(
             id=doc.id,
             company_id=doc.company_id,
             folder_id=doc.folder_id,
@@ -286,7 +335,7 @@ class DocumentService:
             file_size=doc.file_size,
             checksum=doc.checksum,
             version_no=doc.version_no,
-            status=doc.status,
+            status=status,
             ai_summary=doc.ai_summary,
             metadata_json=doc.metadata_json,
             created_by=doc.created_by,
@@ -294,3 +343,8 @@ class DocumentService:
             updated_at=doc.updated_at,
             download_url=download_url,
         )
+
+        # add non-standard optional fields for frontend convenience
+        setattr(response, 'company', company_info)
+
+        return response

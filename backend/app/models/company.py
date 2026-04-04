@@ -37,5 +37,11 @@ class Company(Base):
         "MatchingResult", back_populates="company", cascade="all, delete-orphan"
     )
 
+    @property
+    def status(self) -> str:
+        if not self.is_active:
+            return "inactive"
+        return "active"
+
     def __repr__(self) -> str:
         return f"<Company id={self.id} name={self.name} nipt={self.nipt}>"

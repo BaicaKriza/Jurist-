@@ -143,26 +143,39 @@ export interface ProcedureDocument {
 
 export interface Procedure {
   id: string
-  reference_number: string
-  title: string
-  contracting_authority: string
-  procedure_type: ProcedureType
-  estimated_value?: number
-  currency: string
-  deadline: string
-  publication_date: string
-  status: ProcedureStatus
-  description?: string
-  cpv_codes?: string[]
+  source_name: string
   source_url?: string
-  documents?: ProcedureDocument[]
-  analysis_status: AnalysisStatus
+  reference_no?: string
+  notice_no?: string
+  authority_name?: string
+  object_description?: string
+  procedure_type?: string
+  contract_type?: string
+  cpv_code?: string
+  cpv_codes?: string[]
+  fund_limit?: number
+  currency?: string
+  publication_date?: string
+  opening_date?: string
+  closing_date?: string
+  status: string
+  document_count?: number
   created_at: string
   updated_at: string
+  documents?: ProcedureDocument[]
+  analysis_status?: AnalysisStatus
+  title?: string
+  description?: string
+  reference_number?: string
+  contracting_authority?: string
+  estimated_value?: number
+  deadline?: string
 }
 
 // ─── Analysis ─────────────────────────────────────────────────────────────────
 
+export type MatchStatus = 'FOUND_VALID' | 'FOUND_EXPIRED' | 'FOUND_PARTIAL' | 'MISSING' | 'REVIEW_REQUIRED'
+export type RiskLevel = 'LOW' | 'MEDIUM' | 'HIGH'
 export type MatchingStatus =
   | 'FOUND_VALID'
   | 'FOUND_EXPIRING'
@@ -231,13 +244,11 @@ export interface MatchingResult {
 }
 
 export interface MatchingReport {
-  id: number
-  procedure_id: number
+  procedure_id: string
   company_id: string
   company_name?: string
-  company: Company
-  procedure: Procedure
-  results: MatchingResult[]
+  procedure_reference?: string
+  authority_name?: string
   total_required: number
   found_valid: number
   found_expired: number
@@ -342,14 +353,15 @@ export interface CompanyFormData {
 }
 
 export interface DocumentUploadData {
-  company_id: string
-  company_name?: string
-  folder_id?: number
+  company_id: number | string
+  folder_id?: number | string
   title: string
-  document_type: DocumentType
+  doc_type?: string
+  document_type?: DocumentType
   issuer?: string
   issue_date?: string
   expiry_date?: string
+  reference_no?: string
   reference_number?: string
   notes?: string
   file: File

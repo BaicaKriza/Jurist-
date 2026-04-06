@@ -1,7 +1,7 @@
 import logging
 from datetime import timedelta
-from typing import List
-from fastapi import APIRouter, Depends, Form, HTTPException, status
+from typing import List, Optional
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from sqlalchemy import select
@@ -52,7 +52,7 @@ def _build_user_response(user: User, db: Session) -> UserResponse:
 
 
 def _authenticate_user(email: str, password: str, db: Session) -> User:
-        """Authenticate a user by email and password, returning the user or raising HTTPException."""
+        """Authenticate a user by email+password. Raises HTTPException on failure."""
         user = db.execute(
             select(User).where(User.email == email)
         ).scalar_one_or_none()
@@ -70,44 +70,70 @@ def _authenticate_user(email: str, password: str, db: Session) -> User:
                         return user
 
 
-@router.post("/login", response_model=TokenResponse, summary="Login with JSON body")
-def login(payload: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse:
-        """Authenticate a user with JSON {email, password} and return JWT tokens."""
-    user = _authenticate_user(payload.email, payload.password, db)
-    token_data = {"sub": user.id, "email": user.email}
-    access_token = create_access_token(token_data)
-    refresh_token = create_refresh_token(token_data)
-    logger.info(f"User {user.email} logged in (JSON)")
+def _make_token_response(user: User) -> TokenResponse:
+        token_data = {"sub": user.id, "email": user.email}
     return TokenResponse(
-                access_token=access_token,
-                refresh_token=refresh_token,
+                access_token=create_access_token(token_data),
+                refresh_token=create_refresh_token(token_data),
                 token_type="bearer",
                 expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
     )
 
 
-@router.post("/token", response_model=TokenResponse, summary="OAuth2 form login (username+password)")
+@router.post(
+        "/login",
+        response_model=TokenResponse,
+        summary="Login — accepts JSON body OR form-urlencoded (username+password)",
+)
+async def login(
+        request: Request,
+        db: Session = Depends(get_db),
+) -> TokenResponse:
+        """
+            Flexible login endpoint.
+                - JSON:  {"email": "...", "password": "..."}
+                    - Form:  username=...&password=...   (OAuth2-style; username field is treated as email)
+                        """
+    content_type = request.headers.get("content-type", "")
+
+    if "application/json" in content_type:
+                body = await request.json()
+                email = body.get("email") or body.get("username", "")
+                password = body.get("password", "")
+else:
+        # form-urlencoded or multipart
+            form = await request.form()
+            email = form.get("email") or form.get("username", "")
+            password = form.get("password", "")
+
+    if not email or not password:
+                raise HTTPException(
+                                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                detail="email dhe password jane te detyrueshme",
+                )
+
+    user = _authenticate_user(str(email), str(password), db)
+    logger.info(f"User {user.email} logged in")
+    return _make_token_response(user)
+
+
+@router.post(
+        "/token",
+        response_model=TokenResponse,
+        summary="OAuth2 form login (Swagger UI compatible)",
+)
 def login_form(
         form_data: OAuth2PasswordRequestForm = Depends(),
         db: Session = Depends(get_db),
 ) -> TokenResponse:
-        """Authenticate a user with form-urlencoded username/password (OAuth2 compatible)."""
-    user = _authenticate_user(form_data.username, form_data.password, db)
-    token_data = {"sub": user.id, "email": user.email}
-    access_token = create_access_token(token_data)
-    refresh_token = create_refresh_token(token_data)
-    logger.info(f"User {user.email} logged in (form)")
-    return TokenResponse(
-                access_token=access_token,
-                refresh_token=refresh_token,
-                token_type="bearer",
-                expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-    )
+        """Standard OAuth2 password grant — for Swagger UI /docs."""
+        user = _authenticate_user(form_data.username, form_data.password, db)
+        logger.info(f"User {user.email} logged in via OAuth2")
+        return _make_token_response(user)
 
 
 @router.post("/refresh", response_model=TokenResponse, summary="Refresh access token")
 def refresh_token(payload: RefreshRequest, db: Session = Depends(get_db)) -> TokenResponse:
-        """Exchange a valid refresh token for a new access token."""
         token_payload = verify_token(payload.refresh_token, token_type="refresh")
         if not token_payload:
                     raise HTTPException(
@@ -121,17 +147,8 @@ def refresh_token(payload: RefreshRequest, db: Session = Depends(get_db)) -> Tok
                 raise HTTPException(
                                 status_code=status.HTTP_401_UNAUTHORIZED,
                                 detail="Perdoruesi nuk u gjet ose eshte i caktivizuar",
-                                headers={"WWW-Authenticate": "Bearer"},
                 )
-            token_data = {"sub": user.id, "email": user.email}
-    new_access_token = create_access_token(token_data)
-    new_refresh_token = create_refresh_token(token_data)
-    return TokenResponse(
-                access_token=new_access_token,
-                refresh_token=new_refresh_token,
-                token_type="bearer",
-                expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-    )
+            return _make_token_response(user)
 
 
 @router.get("/me", response_model=UserResponse, summary="Get current user info")
@@ -139,8 +156,7 @@ def get_me(
         current_user: User = Depends(get_current_user),
         db: Session = Depends(get_db),
 ) -> UserResponse:
-        """Return the profile of the currently authenticated user."""
-    return _build_user_response(current_user, db)
+        return _build_user_response(current_user, db)
 
 
 @router.post(
@@ -154,10 +170,9 @@ def register_user(
         db: Session = Depends(get_db),
         _: User = Depends(get_current_superadmin),
 ) -> UserResponse:
-        """Create a new user account. Requires superadmin privileges."""
-    existing = db.execute(
-                select(User).where(User.email == payload.email)
-    ).scalar_one_or_none()
+        existing = db.execute(
+            select(User).where(User.email == payload.email)
+).scalar_one_or_none()
     if existing:
                 raise HTTPException(
                                 status_code=status.HTTP_409_CONFLICT,
@@ -178,9 +193,7 @@ def register_user(
                 ).scalar_one_or_none()
                 if role:
                                 db.add(UserRole(user_id=new_user.id, role_id=role.id))
-else:
-                logger.warning(f"Role '{role_name}' not found; skipping assignment")
-        db.commit()
+                        db.commit()
     db.refresh(new_user)
     logger.info(f"New user registered: {new_user.email}")
     return _build_user_response(new_user, db)
@@ -192,7 +205,6 @@ def change_password(
         current_user: User = Depends(get_current_user),
         db: Session = Depends(get_db),
 ) -> None:
-        """Allow the authenticated user to change their own password."""
         if not verify_password(payload.current_password, current_user.password_hash):
                     raise HTTPException(
                                     status_code=status.HTTP_400_BAD_REQUEST,

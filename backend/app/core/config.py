@@ -5,59 +5,50 @@ from typing import List
 
 
 class Settings(BaseSettings):
-        # ── Database ──────────────────────────────────────────────────────────────
-        DATABASE_URL: str = "postgresql+psycopg2://jurist:jurist@localhost:5432/jurist"
+    DATABASE_URL: str = "postgresql+psycopg2://jurist:jurist@localhost:5432/jurist"
 
-    # ── Security ──────────────────────────────────────────────────────────────
-        SECRET_KEY: str = "dev-secret-key-change-in-production"
-        ALGORITHM: str = "HS256"
-        ACCESS_TOKEN_EXPIRE_MINUTES: int = 480
-        REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+    SECRET_KEY: str = "dev-secret-key-change-in-production"
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 480
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
-    # ── Storage ───────────────────────────────────────────────────────────────
-        STORAGE_TYPE: str = "local"
-        STORAGE_PATH: str = "./storage"
+    STORAGE_TYPE: str = "local"
+    STORAGE_PATH: str = "./storage"
 
-    # ── MinIO (optional) ──────────────────────────────────────────────────────
-        MINIO_ENDPOINT: str = "minio:9000"
-        MINIO_ACCESS_KEY: str = "minioadmin"
-        MINIO_SECRET_KEY: str = "minioadmin"
-        MINIO_BUCKET: str = "jurist-documents"
-        MINIO_USE_SSL: bool = False
+    MINIO_ENDPOINT: str = "minio:9000"
+    MINIO_ACCESS_KEY: str = "minioadmin"
+    MINIO_SECRET_KEY: str = "minioadmin"
+    MINIO_BUCKET: str = "jurist-documents"
+    MINIO_USE_SSL: bool = False
 
-    # ── Redis ─────────────────────────────────────────────────────────────────
-        REDIS_URL: str = "redis://localhost:6379/0"
+    REDIS_URL: str = "redis://localhost:6379/0"
 
-    # ── OpenAI ────────────────────────────────────────────────────────────────
-        OPENAI_API_KEY: str = ""
+    OPENAI_API_KEY: str = ""
 
-    # ── Scraping URLs ─────────────────────────────────────────────────────────
-        APP_GOV_NOTICES_URL: str = "https://www.app.gov.al/njoftimi-i-kontrat%C3%ABs-s%C3%AB-shpallur/"
-        APP_GOV_SMALL_VALUE_URL: str = "https://www.app.gov.al/prokurimet-me-vlere-te-vogel/"
+    APP_GOV_NOTICES_URL: str = "https://www.app.gov.al/njoftimi-i-kontrat%C3%ABs-s%C3%AB-shpallur/"
+    APP_GOV_SMALL_VALUE_URL: str = "https://www.app.gov.al/prokurimet-me-vlere-te-vogel/"
 
-    # ── App config ────────────────────────────────────────────────────────────
-        ENVIRONMENT: str = "development"
-        MAX_UPLOAD_SIZE_MB: int = 50
-        ALLOWED_EXTENSIONS: List[str] = [".pdf", ".docx", ".doc", ".xlsx", ".xls", ".png", ".jpg", ".jpeg"]
-        ALLOWED_ORIGINS: str = ""
+    ENVIRONMENT: str = "development"
+    MAX_UPLOAD_SIZE_MB: int = 50
+    ALLOWED_EXTENSIONS: List[str] = [".pdf", ".docx", ".doc", ".xlsx", ".xls", ".png", ".jpg", ".jpeg"]
+    ALLOWED_ORIGINS: str = ""
 
     model_config = {"env_file": ".env", "extra": "ignore"}
 
     @property
     def database_url_sync(self) -> str:
-                """Return DATABASE_URL with psycopg2 driver (Railway compat)."""
-                url = self.DATABASE_URL
-                # Railway gives postgresql:// — convert to postgresql+psycopg2://
-                if url.startswith("postgres://"):
-                                url = url.replace("postgres://", "postgresql+psycopg2://", 1)
-elif url.startswith("postgresql://") and "+psycopg2" not in url:
+        """Return DATABASE_URL with psycopg2 driver (Railway compat)."""
+        url = self.DATABASE_URL
+        if url.startswith("postgres://"):
+            url = url.replace("postgres://", "postgresql+psycopg2://", 1)
+        elif url.startswith("postgresql://") and "+psycopg2" not in url:
             url = url.replace("postgresql://", "postgresql+psycopg2://", 1)
         return url
 
 
 @lru_cache()
 def get_settings() -> Settings:
-        return Settings()
+    return Settings()
 
 
 settings = get_settings()

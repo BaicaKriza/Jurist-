@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, date
 from typing import Optional
-from sqlalchemy import String, Text, Numeric, DateTime, Date, ForeignKey, func, Enum as SAEnum
+from sqlalchemy import String, Text, Numeric, DateTime, Date, ForeignKey, Boolean, Integer, func, Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import JSONB
 from app.core.database import Base
@@ -9,24 +9,24 @@ import enum
 
 
 class ProcedureSource(str, enum.Enum):
-    CONTRACT_NOTICE = "CONTRACT_NOTICE"
-    SMALL_VALUE = "SMALL_VALUE"
+        CONTRACT_NOTICE = "CONTRACT_NOTICE"
+        SMALL_VALUE = "SMALL_VALUE"
 
 
 class ProcedureStatus(str, enum.Enum):
-    OPEN = "OPEN"
-    CLOSED = "CLOSED"
-    AWARDED = "AWARDED"
-    CANCELLED = "CANCELLED"
-    UNKNOWN = "UNKNOWN"
+        OPEN = "OPEN"
+        CLOSED = "CLOSED"
+        AWARDED = "AWARDED"
+        CANCELLED = "CANCELLED"
+        UNKNOWN = "UNKNOWN"
 
 
 class Procedure(Base):
-    __tablename__ = "procedures"
+        __tablename__ = "procedures"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     source_name: Mapped[str] = mapped_column(
-        SAEnum(ProcedureSource, name="proceduresource"), nullable=False, index=True
+                SAEnum(ProcedureSource, name="proceduresource"), nullable=False, index=True
     )
     source_url: Mapped[Optional[str]] = mapped_column(String(2048), nullable=True)
     reference_no: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, index=True)
@@ -42,23 +42,26 @@ class Procedure(Base):
     opening_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     closing_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True, index=True)
     status: Mapped[str] = mapped_column(
-        SAEnum(ProcedureStatus, name="procedurestatus"),
-        nullable=False,
-        default=ProcedureStatus.UNKNOWN,
-        index=True,
+                SAEnum(ProcedureStatus, name="procedurestatus"),
+                nullable=False,
+                default=ProcedureStatus.UNKNOWN,
+                index=True,
     )
     raw_html: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     raw_json: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True, default=dict)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
+                DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+                DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
 
     # Relationships
     procedure_documents: Mapped[list["ProcedureDocument"]] = relationship(
-        "ProcedureDocument", back_populates="procedure", cascade="all, delete-orphan"
+                "ProcedureDocument", back_populates="procedure", cascade="all, delete-orphan"
+    )
+    uploaded_documents: Mapped[list["ProcedureUploadedDocument"]] = relationship(
+                "ProcedureUploadedDocument", back_populates="procedure", cascade="all, delete-orphan"
     )
     analyses: Mapped[list["ProcedureAnalysis"]] = relationship(  # noqa: F821
         "ProcedureAnalysis", back_populates="procedure", cascade="all, delete-orphan"
@@ -71,15 +74,15 @@ class Procedure(Base):
     )
 
     def __repr__(self) -> str:
-        return f"<Procedure id={self.id} ref={self.reference_no} source={self.source_name}>"
+                return f"<Procedure id={self.id} ref={self.reference_no} source={self.source_name}>"
 
 
 class ProcedureDocument(Base):
-    __tablename__ = "procedure_documents"
+        __tablename__ = "procedure_documents"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     procedure_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("procedures.id", ondelete="CASCADE"), nullable=False, index=True
+                String(36), ForeignKey("procedures.id", ondelete="CASCADE"), nullable=False, index=True
     )
     title: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     document_url: Mapped[Optional[str]] = mapped_column(String(2048), nullable=True)
@@ -90,11 +93,40 @@ class ProcedureDocument(Base):
     extracted_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     ai_summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
+                DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
     # Relationships
     procedure: Mapped["Procedure"] = relationship("Procedure", back_populates="procedure_documents")
 
     def __repr__(self) -> str:
-        return f"<ProcedureDocument id={self.id} title={self.title}>"
+                return f"<ProcedureDocument id={self.id} title={self.title}>"
+
+
+class ProcedureUploadedDocument(Base):
+        """Documents uploaded directly by users to a procedure (DST, specs, criteria, etc.)"""
+        __tablename__ = "procedure_uploaded_documents"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    procedure_id: Mapped[str] = mapped_column(
+                String(36), ForeignKey("procedures.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    title: Mapped[str] = mapped_column(String(512), nullable=False)
+    file_name: Mapped[str] = mapped_column(String(512), nullable=False)
+    file_path: Mapped[str] = mapped_column(String(1024), nullable=False)
+    doc_type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    mime_type: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    file_size: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    extracted_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    ai_summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    is_deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(
+                DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    # Relationships
+    procedure: Mapped["Procedure"] = relationship("Procedure", back_populates="uploaded_documents")
+
+    def __repr__(self) -> str:
+                return f"<ProcedureUploadedDocument id={self.id} title={self.title} doc_type={self.doc_type}>"
+        

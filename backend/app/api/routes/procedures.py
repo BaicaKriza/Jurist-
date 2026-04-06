@@ -551,3 +551,50 @@ def delete_requirement(
             db.delete(item)
     db.commit()
     logger.info(f"Requirement {requirement_id} deleted from procedure {procedure_id}")
+
+
+
+# ---------------------------------------------------------------------------
+# ALIAS ENDPOINTS for test compatibility
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+        "/{procedure_id}/documents/upload",
+        status_code=status.HTTP_201_CREATED,
+        include_in_schema=False,
+        summary="Alias: upload doc to procedure",
+)
+async def upload_procedure_document_alias(
+        procedure_id: str,
+        background_tasks: BackgroundTasks,
+        file: UploadFile = File(...),
+        title: str = Form(...),
+        doc_type: str = Form(...),
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+):
+        """Alias for POST /{procedure_id}/upload — test suite compatibility."""
+    return await upload_procedure_document(
+                procedure_id=procedure_id,
+                background_tasks=background_tasks,
+                file=file,
+                title=title,
+                doc_type=doc_type,
+                db=db,
+                current_user=current_user,
+    )
+
+
+@router.get(
+        "/{procedure_id}/documents/list",
+        include_in_schema=False,
+        summary="Alias: list uploaded docs",
+)
+def list_uploaded_documents_alias(
+        procedure_id: str,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+):
+        """Alias for GET /{procedure_id}/upload — test suite compatibility."""
+    return list_uploaded_documents(procedure_id=procedure_id, db=db, _=current_user)

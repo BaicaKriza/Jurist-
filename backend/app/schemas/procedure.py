@@ -1,12 +1,14 @@
+from datetime import date, datetime
+from typing import Any, Optional
+
 from pydantic import BaseModel, Field, model_validator
-from typing import Optional, List, Any
-from datetime import datetime, date
-from app.models.procedure import ProcedureSource, ProcedureStatus
+
 from app.models.analysis import DocumentCategory
+from app.models.procedure import ProcedureSource, ProcedureStatus
 
 
 class ProcedureResponse(BaseModel):
-        model_config = {"from_attributes": True}
+    model_config = {"from_attributes": True}
 
     id: str
     source_name: str
@@ -30,7 +32,7 @@ class ProcedureResponse(BaseModel):
 
 
 class ProcedureDocumentResponse(BaseModel):
-        model_config = {"from_attributes": True}
+    model_config = {"from_attributes": True}
 
     id: str
     procedure_id: str
@@ -44,43 +46,43 @@ class ProcedureDocumentResponse(BaseModel):
 
 
 class SyncRequest(BaseModel):
-        source: Optional[str] = None
-        max_pages: int = Field(default=5, ge=1, le=50)
-        force_refresh: bool = False
+    source: Optional[str] = None
+    max_pages: int = Field(default=5, ge=1, le=50)
+    force_refresh: bool = False
 
 
 class ProcedureSyncResponse(BaseModel):
-        synced_count: int
-        updated_count: int
-        errors: int
-        message: str
-        source: Optional[str] = None
+    synced_count: int
+    updated_count: int
+    errors: int
+    message: str
+    source: Optional[str] = None
 
 
 class ProcedureCreate(BaseModel):
-        source_name: ProcedureSource = ProcedureSource.CONTRACT_NOTICE
-        source_url: Optional[str] = Field(None, max_length=2048)
-        reference_no: Optional[str] = Field(None, max_length=255)
-        notice_no: Optional[str] = Field(None, max_length=255)
-        authority_name: Optional[str] = Field(None, max_length=512)
-        object_description: Optional[str] = None
-        procedure_type: Optional[str] = Field(None, max_length=255)
-        contract_type: Optional[str] = Field(None, max_length=100)
-        cpv_code: Optional[str] = Field(None, max_length=50)
-        fund_limit: Optional[float] = None
-        currency: Optional[str] = Field("ALL", max_length=10)
-        publication_date: Optional[date] = None
-        opening_date: Optional[date] = None
-        closing_date: Optional[date] = None
-        status: Optional[ProcedureStatus] = ProcedureStatus.UNKNOWN
+    source_name: ProcedureSource = ProcedureSource.CONTRACT_NOTICE
+    source_url: Optional[str] = Field(None, max_length=2048)
+    reference_no: Optional[str] = Field(None, max_length=255)
+    notice_no: Optional[str] = Field(None, max_length=255)
+    authority_name: Optional[str] = Field(None, max_length=512)
+    object_description: Optional[str] = None
+    procedure_type: Optional[str] = Field(None, max_length=255)
+    contract_type: Optional[str] = Field(None, max_length=100)
+    cpv_code: Optional[str] = Field(None, max_length=50)
+    fund_limit: Optional[float] = None
+    currency: Optional[str] = Field("ALL", max_length=10)
+    publication_date: Optional[date] = None
+    opening_date: Optional[date] = None
+    closing_date: Optional[date] = None
+    status: Optional[ProcedureStatus] = ProcedureStatus.UNKNOWN
 
 
 class RequiredDocumentCreate(BaseModel):
-        name: str = Field(min_length=1, max_length=512)
-        category: DocumentCategory = DocumentCategory.ADMINISTRATIVE
-        description: Optional[str] = None
-        mandatory: Optional[bool] = True
-        is_mandatory: Optional[bool] = None  # alias for mandatory — test compatibility
+    name: str = Field(min_length=1, max_length=512)
+    category: DocumentCategory = DocumentCategory.ADMINISTRATIVE
+    description: Optional[str] = None
+    mandatory: Optional[bool] = True
+    is_mandatory: Optional[bool] = None
     issuer_type: Optional[str] = Field(None, max_length=255)
     source_hint: Optional[str] = None
     validity_rule: Optional[str] = None
@@ -88,25 +90,21 @@ class RequiredDocumentCreate(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def handle_is_mandatory_alias(cls, values: Any) -> Any:
-                """Accept is_mandatory as an alias for mandatory."""
-                if isinstance(values, dict):
-                                if "is_mandatory" in values and "mandatory" not in values:
-                                                    values["mandatory"] = values["is_mandatory"]
-                elif "is_mandatory" in values and values.get("mandatory") is None:
-                                    values["mandatory"] = values["is_mandatory"]
-                            return values
+        if isinstance(values, dict) and "is_mandatory" in values and "mandatory" not in values:
+            values["mandatory"] = values["is_mandatory"]
+        return values
 
     @property
     def resolved_mandatory(self) -> bool:
-                if self.mandatory is not None:
-                                return self.mandatory
-                            if self.is_mandatory is not None:
-                                            return self.is_mandatory
-                                        return True
+        if self.mandatory is not None:
+            return self.mandatory
+        if self.is_mandatory is not None:
+            return self.is_mandatory
+        return True
 
 
 class RequiredDocumentResponse(BaseModel):
-        model_config = {"from_attributes": True}
+    model_config = {"from_attributes": True}
 
     id: str
     procedure_id: str
@@ -120,7 +118,7 @@ class RequiredDocumentResponse(BaseModel):
 
 
 class ProcedureFilterParams(BaseModel):
-        source_name: Optional[str] = None
+    source_name: Optional[str] = None
     status: Optional[str] = None
     authority_name: Optional[str] = None
     cpv_code: Optional[str] = None

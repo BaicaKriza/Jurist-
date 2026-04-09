@@ -51,6 +51,8 @@ minio_data/
 
 # Uploads
 uploads/
+backend/storage/
+storage/
 
 # IDE
 .vscode/

@@ -5,7 +5,8 @@
   "description": "Jurist – Albanian procurement document management platform",
   "scripts": {
     "install:all": "npm install --prefix frontend && python3 -m pip install -r backend/requirements.txt --quiet",
-    "dev": "concurrently -k -n BACK,FRONT -c cyan,green \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev": "bash start.sh",
+    "dev:raw": "concurrently -k -n BACK,FRONT -c cyan,green \"npm run dev:backend\" \"npm run dev:frontend\"",
     "dev:backend": "cd backend && python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload",
     "dev:frontend": "npm run dev --prefix frontend -- --host 0.0.0.0 --port 5173",
     "seed": "cd backend && python3 seed.py",

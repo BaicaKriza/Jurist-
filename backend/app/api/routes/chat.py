@@ -103,6 +103,36 @@ def event_stream(content: str):
     yield f"data: {json.dumps({'delta': '', 'done': True})}\n\n"
 
 
+def fallback_answer(message: str, context: str) -> str:
+    normalized = message.lower()
+    if any(term in normalized for term in ["upload", "ngarko", "hedh", "hudh", "dokument", "kontrat"]):
+        return (
+            "Mund te punosh me dokumentet edhe pa OPENAI_API_KEY. Per dokumente kontrate ose tenderi: "
+            "shko te Procedurat APP, krijo ose hap nje procedure, pastaj hap tab-in Dokumentet dhe kliko "
+            "Ngarko Dokument. Zgjidh llojin KONTRATE per kontrata, DST per dosjen e tenderit, KRITERE per "
+            "kriteret, ose SPECIFIKIME per specifikimet. Skedari ruhet ne sistem dhe lidhet me proceduren. "
+            "Per permbledhje inteligjente reale duhet vendosur OPENAI_API_KEY ne server."
+        )
+    if any(term in normalized for term in ["dosje", "plotes", "mungon", "mungoj"]):
+        return (
+            "Per te plotesuar dosjen: krijo proceduren, shto kerkesat e dokumentacionit te tab-i Kerkesat, "
+            "ngarko dokumentet e kontrates/tenderit te tab-i Dokumentet, pastaj perdor Analizat ose Dok. "
+            "Mungojne per te krahasuar kerkesat me dokumentet e kompanise. Pa OPENAI_API_KEY mund te ruhen "
+            "dokumentet dhe te behet workflow bazik, por jo analize AI reale."
+        )
+    if context:
+        return (
+            "E kam kontekstin e procedures/kompanise, por AI reale nuk eshte aktive sepse mungon "
+            "OPENAI_API_KEY. Te dhenat dhe mesazhi u ruajten ne sistem. Vendos OPENAI_API_KEY qe te jap "
+            "pergjigje te plote mbi dokumentet e ngarkuara."
+        )
+    return (
+        "Jurist AI eshte gati si modul chat-i dhe mesazhet ruhen ne sistem, por per pergjigje reale duhet "
+        "OPENAI_API_KEY ne environment. Deri atehere mund te perdoresh app-in per krijim procedurash, "
+        "ngarkim dokumentesh dhe ruajtje te te dhenave."
+    )
+
+
 @router.post("/message")
 async def chat_message(
     request: ChatRequest,
@@ -134,10 +164,7 @@ async def chat_message(
 
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
-        mock_response = (
-            "Jurist AI eshte aktiv! Per pergjigje reale, konfiguro OPENAI_API_KEY ne environment. "
-            f"Pyetja juaj: '{request.message}'"
-        )
+        mock_response = fallback_answer(request.message, context)
         db.add(
             ChatMessage(
                 session_id=session_id,

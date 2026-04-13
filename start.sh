@@ -66,6 +66,15 @@ wait_for_db() {
   return 1
 }
 
+forwarded_url() {
+  local port="$1"
+  if [ -n "${CODESPACE_NAME:-}" ] && [ -n "${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN:-}" ]; then
+    echo "https://${CODESPACE_NAME}-${port}.${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN}"
+  else
+    echo "http://localhost:${port}"
+  fi
+}
+
 write_env_files() {
   info "Writing local dev env files..."
   cat > "$BACKEND_DIR/.env" <<'EOF'
@@ -199,6 +208,7 @@ case "${1:-run}" in
     info "Frontend: http://localhost:5173"
     info "Backend : http://localhost:8000"
     info "Docs    : http://localhost:8000/docs"
+    info "Share link (set port 5173 visibility to Public if Rustit needs access): $(forwarded_url 5173)"
     info "Login   : admin@jurist.al / Admin123!"
     info "Open the Codespaces forwarded URL for port 5173."
     info "Leave this terminal open. Press Ctrl+C to stop."

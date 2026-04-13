@@ -44,6 +44,11 @@ export function ChatWidget() {
   const companyMatch = location.pathname.match(/\/companies\/([a-zA-Z0-9-]+)/)
   const procedureId = procedureMatch ? procedureMatch[1] : null
   const companyId = companyMatch ? companyMatch[1] : null
+  const contextLabel = procedureId
+    ? `Procedure ${procedureId.slice(0, 8)}`
+    : companyId
+      ? `Kompani ${companyId.slice(0, 8)}`
+      : 'Modus i pergjithshem'
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -145,25 +150,13 @@ export function ChatWidget() {
   }
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3">
+    <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-3 sm:bottom-5 sm:right-5">
       {open && (
-        <div className="w-[400px] h-[580px] bg-white rounded-2xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden">
-          <div className="bg-gradient-to-r from-indigo-600 to-indigo-700 px-4 py-3 flex items-center justify-between">
+        <div className="h-[560px] max-h-[calc(100vh-96px)] w-[calc(100vw-32px)] max-w-[380px] bg-white rounded-lg shadow-2xl border border-gray-200 flex flex-col overflow-hidden">
+          <div className="bg-indigo-700 px-4 py-3 flex items-center justify-between">
             <div>
               <div className="text-white font-semibold flex items-center gap-2">Jurist AI</div>
-              {procedureId && (
-                <div className="text-indigo-200 text-xs mt-0.5">
-                  Procedura #{procedureId.slice(0, 8)}
-                </div>
-              )}
-              {companyId && !procedureId && (
-                <div className="text-indigo-200 text-xs mt-0.5">
-                  Kompania #{companyId.slice(0, 8)}
-                </div>
-              )}
-              {!procedureId && !companyId && (
-                <div className="text-indigo-200 text-xs mt-0.5">Modus i pergjithshem</div>
-              )}
+              <div className="text-indigo-100 text-xs mt-0.5">{contextLabel}</div>
             </div>
             <button
               onClick={() => setOpen(false)}
@@ -174,16 +167,16 @@ export function ChatWidget() {
             </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50">
+          <div className="flex-1 overflow-y-auto p-3 space-y-3 bg-gray-50">
             {messages.length === 0 && (
               <div>
                 <p className="text-center text-gray-400 text-sm mb-4">Si mund te ndihmoj?</p>
-                <div className="space-y-2">
+                <div className="flex flex-wrap gap-2">
                   {SUGGESTED.map((q) => (
                     <button
                       key={q}
                       onClick={() => sendMessage(q)}
-                      className="w-full text-left text-sm px-3 py-2 rounded-lg bg-white hover:bg-indigo-50 text-indigo-700 border border-indigo-200 transition-colors"
+                      className="text-left text-xs px-3 py-2 rounded-lg bg-white hover:bg-indigo-50 text-indigo-700 border border-indigo-200 transition-colors"
                       type="button"
                     >
                       {q}

@@ -1,6 +1,7 @@
 import logging
 import re
 from typing import Optional
+from urllib.parse import urljoin
 from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
@@ -9,13 +10,19 @@ logger = logging.getLogger(__name__)
 class AppGovParser:
     """Parser for APP.gov.al procurement notices."""
 
-    def parse_contract_notices(self, html: str) -> list[dict]:
+    def parse_contract_notices(self, html: str, page_url: str = "") -> list[dict]:
         """Parse listing page of contract notices."""
         soup = BeautifulSoup(html, "lxml")
-        procedures = []
+        procedures = self._parse_app_portal_modals(soup, page_url)
+        if procedures:
+            logger.info("Parsed %s APP portal modal procedures from HTML", len(procedures))
+            return procedures
 
         # Look for article/post entries that contain procedure links
-        entries = soup.find_all(["article", "div"], class_=re.compile(r"post|entry|item|notice", re.I))
+        procedures = []
+        entries = soup.select(".list-group-item-result")
+        if not entries:
+            entries = soup.find_all(["article", "div"], class_=re.compile(r"post|entry|item|notice", re.I))
         if not entries:
             # Fallback: look for table rows
             entries = soup.find_all("tr")
@@ -35,9 +42,97 @@ class AppGovParser:
         logger.info(f"Parsed {len(procedures)} contract notices from HTML")
         return procedures
 
-    def parse_small_value_procedures(self, html: str) -> list[dict]:
+    def parse_small_value_procedures(self, html: str, page_url: str = "") -> list[dict]:
         """Parse listing page of small value procedures."""
-        return self.parse_contract_notices(html)
+        return self.parse_contract_notices(html, page_url=page_url)
+
+    def _parse_app_portal_modals(self, soup: BeautifulSoup, page_url: str = "") -> list[dict]:
+        """Parse APP.gov.al's current listing layout.
+
+        The public portal renders each result as a list item whose details live in
+        an inline Bootstrap modal (#myModal_...). There is no stable detail page
+        URL for those items, so treating the modal href as a URL makes sync skip
+        every result. This parser reads those inline modals directly.
+        """
+        procedures: list[dict] = []
+        seen = set()
+
+        for modal in soup.select('div[id^="myModal_"]'):
+            modal_id = modal.get("id")
+            if not modal_id or modal_id in seen:
+                continue
+            seen.add(modal_id)
+
+            proc = self._extract_modal_procedure(modal, modal_id, page_url)
+            if proc and proc.get("object_description"):
+                procedures.append(proc)
+
+        return procedures
+
+    def _extract_modal_procedure(self, modal, modal_id: str, page_url: str = "") -> Optional[dict]:
+        raw_text = modal.get_text(" ", strip=True)
+        source_url = f"{page_url.rstrip('/')}#{modal_id}" if page_url else f"#{modal_id}"
+        data = {
+            "source_url": source_url,
+            "raw_html": str(modal)[:50000],
+            "raw_text": raw_text[:5000],
+            "document_links": self._extract_document_links(modal),
+        }
+
+        for item in modal.select("li.list-group-item"):
+            smalls = [small.get_text(" ", strip=True) for small in item.find_all("small")]
+            if len(smalls) < 2:
+                continue
+
+            term = self._normalize_label(smalls[0])
+            values = [
+                value.strip()
+                for value in smalls[1:]
+                if value.strip() and self._normalize_label(value) not in {"ora"}
+            ]
+            value = " ".join(values).strip()
+            if not value:
+                continue
+
+            self._match_app_modal_field(term, value, data)
+
+        # Listing cards sometimes include useful values even when the modal
+        # structure changes. Keep this as a conservative fallback.
+        if not data.get("publication_date"):
+            data["publication_date"] = self._extract_date_from_text(raw_text)
+
+        if not data.get("object_description"):
+            return None
+        return data
+
+    def _normalize_label(self, text: str) -> str:
+        text = (text or "").lower()
+        text = text.replace("ë", "e").replace("ç", "c")
+        return re.sub(r"[\s:]+", " ", text).strip()
+
+    def _match_app_modal_field(self, term: str, value: str, data: dict) -> None:
+        if "objekti i tenderit" in term:
+            data["object_description"] = value
+        elif "autoriteti kontraktues" in term or "autoriteti kontraktor" in term:
+            data["authority_name"] = value
+        elif "procedura" in term:
+            data["procedure_type"] = value
+        elif "tipi i kontrates" in term or "lloji i kontrates" in term:
+            data["contract_type"] = value
+        elif "numri i references" in term or term == "referenca":
+            data["reference_no"] = value
+        elif "numri i njoftimit" in term:
+            data["notice_no"] = value
+        elif "data e publikimit" in term:
+            data["publication_date"] = value
+        elif "data e hapjes" in term:
+            data["opening_date"] = value
+        elif "data e mbylljes" in term or "afati i dorezimit" in term:
+            data["closing_date"] = value
+        elif "fondi limit" in term or "kufiri i fondit" in term:
+            data["fund_limit"] = value
+        elif "kodi cpv" in term:
+            data["cpv_code"] = value
 
     def _extract_listing_item(self, element) -> Optional[dict]:
         """Extract procedure data from a listing item."""
@@ -211,7 +306,8 @@ class AppGovParser:
                 ext in lower_href
                 for ext in [".pdf", ".doc", ".docx", ".xlsx", ".xls", ".zip", ".rar", "download", "file"]
             )
-            if is_doc or "app.gov.al" in lower_href:
+            if is_doc:
+                href = urljoin("https://www.app.gov.al/", href)
                 title = a.get_text(strip=True) or a.get("title", "") or href.split("/")[-1]
                 doc_links.append({
                     "url": href,
@@ -226,6 +322,7 @@ class AppGovParser:
         # Albanian date patterns: DD.MM.YYYY or DD/MM/YYYY
         patterns = [
             r'\b(\d{2}[./]\d{2}[./]\d{4})\b',
+            r'\b(\d{1,2}-\d{1,2}-\d{4})\b',
             r'\b(\d{4}-\d{2}-\d{2})\b',
         ]
         for pattern in patterns:

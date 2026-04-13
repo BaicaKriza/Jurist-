@@ -88,8 +88,8 @@ class AppGovNormalizer:
             except ValueError:
                 pass
 
-        # Try DD.MM.YYYY or DD/MM/YYYY
-        dmy_match = re.match(r'^(\d{1,2})[./](\d{1,2})[./](\d{4})$', date_str)
+        # Try DD.MM.YYYY, DD/MM/YYYY, or APP's DD-MM-YYYY
+        dmy_match = re.match(r'^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$', date_str)
         if dmy_match:
             try:
                 return date(int(dmy_match.group(3)), int(dmy_match.group(2)), int(dmy_match.group(1)))
@@ -105,7 +105,7 @@ class AppGovNormalizer:
                 pass
 
         # Extract first date-like pattern from string
-        match = re.search(r'(\d{1,2})[./](\d{1,2})[./](\d{4})', date_str)
+        match = re.search(r'(\d{1,2})[./-](\d{1,2})[./-](\d{4})', date_str)
         if match:
             try:
                 return date(int(match.group(3)), int(match.group(2)), int(match.group(1)))

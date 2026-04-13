@@ -44,10 +44,23 @@ class AppGovSyncService:
                     logger.info(f"Fetched {len(pages)} pages for {source_type}")
 
                     for page_num, html in pages:
-                        if source_type == ProcedureSource.CONTRACT_NOTICE:
-                            raw_items = self.parser.parse_contract_notices(html)
+                        if page_num == 1:
+                            page_url = base_url
                         else:
-                            raw_items = self.parser.parse_small_value_procedures(html)
+                            separator = "&" if "?" in base_url else "?"
+                            page_url = f"{base_url}{separator}paged={page_num}"
+
+                        if source_type == ProcedureSource.CONTRACT_NOTICE:
+                            raw_items = self.parser.parse_contract_notices(html, page_url=page_url)
+                        else:
+                            raw_items = self.parser.parse_small_value_procedures(html, page_url=page_url)
+
+                        logger.info(
+                            "Parsed %s APP items from %s page %s",
+                            len(raw_items),
+                            source_type,
+                            page_num,
+                        )
 
                         for raw_item in raw_items:
                             try:
@@ -101,12 +114,17 @@ class AppGovSyncService:
         if existing and not force_refresh:
             return "skipped"
 
-        # Fetch detail page
-        detail_html = await crawler.fetch_detail_page(source_url)
-        if not detail_html:
-            return "skipped"
-
-        detail_data = self.parser.parse_procedure_detail(detail_html, source_url)
+        # APP.gov.al currently renders item details inline in Bootstrap modals.
+        # When the parser already provides raw_html, avoid fetching the listing
+        # URL again and accidentally parsing the wrong modal.
+        detail_html = raw_item.get("raw_html")
+        if detail_html:
+            detail_data = raw_item
+        else:
+            detail_html = await crawler.fetch_detail_page(source_url)
+            if not detail_html:
+                return "skipped"
+            detail_data = self.parser.parse_procedure_detail(detail_html, source_url)
         # Merge listing data with detail data
         merged = {**raw_item, **detail_data}
         normalized = self.normalizer.normalize_procedure(merged)

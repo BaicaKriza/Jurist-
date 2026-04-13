@@ -57,6 +57,23 @@ function formatCurrency(value?: number | null, currency = 'ALL') {
   if (!value) return '\u2014'
   return new Intl.NumberFormat('sq-AL', { style: 'currency', currency, maximumFractionDigits: 0 }).format(value)
 }
+function apiFileUrl(path: string) {
+  const rawBase = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '')
+  const base = rawBase.endsWith('/api') ? rawBase.slice(0, -4) : rawBase
+  return `${base}/api${path}`
+}
+function parseUploadSummary(summary: string | null) {
+  if (!summary) return { text: '', aiEnabled: true }
+  try {
+    const parsed = JSON.parse(summary)
+    return {
+      text: parsed?.summary ?? summary,
+      aiEnabled: parsed?.ai_enabled !== false,
+    }
+  } catch {
+    return { text: summary, aiEnabled: true }
+  }
+}
 const CATEGORY_LABELS: Record<DocumentCategory, string> = {
   ADMINISTRATIVE: 'Administrative', TECHNICAL: 'Teknike',
   FINANCIAL: 'Financiare', PROFESSIONAL: 'Profesionale',
@@ -187,7 +204,7 @@ export default function ProcedureDetailPage() {
       setUploadTitle('')
       setUploadDocType('DST')
       refetchUploaded()
-      success('Dokumenti u ngarkua', 'AI po analizon ne sfond.')
+      success('Dokumenti u ngarkua', 'Dokumenti u ruajt dhe eshte gati per shqyrtim.')
     } catch (e: any) {
       error('Gabim', e?.response?.data?.detail ?? 'Ngarkimi deshtoi.')
     } finally {
@@ -525,14 +542,11 @@ export default function ProcedureDetailPage() {
                     </p>
                     {doc.ai_summary ? (
                       <div className="text-sm bg-indigo-50 border border-indigo-100 rounded-lg p-3">
-                        <p className="text-xs font-mono text-indigo-600 mb-1">Analize AI</p>
+                        <p className="text-xs font-mono text-indigo-600 mb-1">
+                          {parseUploadSummary(doc.ai_summary).aiEnabled ? 'Analize AI' : 'Status dokumenti'}
+                        </p>
                         <p className="text-gray-700 line-clamp-3">
-                          {(() => {
-                            try {
-                              const parsed = typeof doc.ai_summary === 'string' ? JSON.parse(doc.ai_summary) : doc.ai_summary
-                              return parsed?.summary ?? doc.ai_summary
-                            } catch { return doc.ai_summary }
-                          })()}
+                          {parseUploadSummary(doc.ai_summary).text}
                         </p>
                       </div>
                     ) : (
@@ -544,7 +558,7 @@ export default function ProcedureDetailPage() {
                   </div>
                   <div className="flex gap-2 shrink-0">
                     <Button size="sm" variant="outline" asChild>
-                      <a href={(import.meta.env.VITE_API_URL ?? 'http://localhost:8000') + '/api' + doc.download_url} target="_blank" rel="noopener noreferrer">
+                      <a href={apiFileUrl(doc.download_url)} target="_blank" rel="noopener noreferrer">
                         <Download className="h-4 w-4" />
                       </a>
                     </Button>

@@ -1,4 +1,5 @@
 import io
+import json
 import logging
 import os
 from datetime import datetime
@@ -30,6 +31,18 @@ router = APIRouter(prefix="/procedures", tags=["procedures"])
 ALLOWED_DOC_TYPES = ["DST", "NJOFTIM", "SPECIFIKIME", "KRITERE", "KONTRATE", "SQARIM", "BULETIN", "TJETER"]
 
 
+def _fallback_ai_summary(message: str, extracted_text: str = "") -> str:
+    preview = " ".join((extracted_text or "").split())[:500]
+    return json.dumps(
+        {
+            "summary": message,
+            "ai_enabled": False,
+            "extracted_text_preview": preview,
+        },
+        ensure_ascii=True,
+    )
+
+
 def _enum_value(value):
     return getattr(value, "value", value)
 
@@ -59,13 +72,25 @@ def _serialize_procedure(procedure, document_count: int) -> ProcedureResponse:
 
 
 def _serialize_uploaded_document(procedure_id: str, document) -> dict:
+    ai_summary = document.ai_summary
+    if not ai_summary and not os.getenv("OPENAI_API_KEY"):
+        if document.extracted_text:
+            ai_summary = _fallback_ai_summary(
+                "File uploaded and text extracted. Configure OPENAI_API_KEY to enable AI analysis.",
+                document.extracted_text,
+            )
+        else:
+            ai_summary = _fallback_ai_summary(
+                "File uploaded successfully, but no text could be extracted for AI analysis.",
+            )
+
     return {
         "id": document.id,
         "title": document.title,
         "file_name": document.file_name,
         "doc_type": document.doc_type,
         "file_size": document.file_size,
-        "ai_summary": document.ai_summary,
+        "ai_summary": ai_summary,
         "download_url": f"/procedures/{procedure_id}/upload/{document.id}/download",
         "created_at": document.created_at.isoformat() if document.created_at else None,
     }
@@ -104,6 +129,20 @@ def generate_ai_summary_task(doc_id: str, text: str) -> None:
             logger.info("AI summary generated for procedure document %s", doc_id)
     except Exception as exc:
         logger.warning("AI summary generation failed for doc %s: %s", doc_id, exc)
+        try:
+            from app.models.procedure import ProcedureUploadedDocument
+
+            document = db.execute(
+                select(ProcedureUploadedDocument).where(ProcedureUploadedDocument.id == doc_id)
+            ).scalar_one_or_none()
+            if document and not document.ai_summary:
+                document.ai_summary = _fallback_ai_summary(
+                    "AI analysis failed. The file was uploaded and text extraction completed.",
+                    text,
+                )
+                db.commit()
+        except Exception:
+            logger.exception("Could not save AI failure fallback for doc %s", doc_id)
     finally:
         db.close()
 
@@ -272,6 +311,18 @@ async def upload_procedure_document(
     except Exception as exc:
         logger.warning("Text extraction failed: %s", exc)
 
+    openai_key = os.getenv("OPENAI_API_KEY")
+    ai_summary = None
+    if not extracted_text:
+        ai_summary = _fallback_ai_summary(
+            "File uploaded successfully, but no text could be extracted for AI analysis.",
+        )
+    elif not openai_key:
+        ai_summary = _fallback_ai_summary(
+            "File uploaded and text extracted. Configure OPENAI_API_KEY to enable AI analysis.",
+            extracted_text,
+        )
+
     uploaded_doc = ProcedureUploadedDocument(
         procedure_id=procedure_id,
         file_name=original_name,
@@ -279,6 +330,7 @@ async def upload_procedure_document(
         doc_type=doc_type,
         title=title,
         extracted_text=extracted_text[:50000] if extracted_text else None,
+        ai_summary=ai_summary,
         file_size=file_size,
         mime_type=mime_type,
         is_deleted=False,
@@ -288,7 +340,7 @@ async def upload_procedure_document(
     db.commit()
     db.refresh(uploaded_doc)
 
-    if extracted_text and os.getenv("OPENAI_API_KEY"):
+    if extracted_text and openai_key:
         background_tasks.add_task(generate_ai_summary_task, uploaded_doc.id, extracted_text)
 
     logger.info("Procedure document uploaded by user %s: %s", current_user.id, uploaded_doc.id)
@@ -299,7 +351,7 @@ async def upload_procedure_document(
         "title": uploaded_doc.title,
         "download_url": f"/procedures/{procedure_id}/upload/{uploaded_doc.id}/download",
         "file_size": uploaded_doc.file_size,
-        "ai_summary": None,
+        "ai_summary": uploaded_doc.ai_summary,
         "created_at": uploaded_doc.created_at.isoformat() if uploaded_doc.created_at else None,
     }
 

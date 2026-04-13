@@ -230,7 +230,10 @@ export default function ProceduresPage() {
     mutationFn: () => procedureService.syncProcedures(),
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['procedures'] })
-      success('Sinkronizim i suksesshem', `U sinkronizuan ${result.synced_count} procedura.`)
+      success(
+        'Sinkronizim i suksesshem',
+        result.message || `Te reja: ${result.synced_count}, te perditesuara: ${result.updated_count}.`,
+      )
     },
     onError: (err: any) => {
       error('Gabim', err?.response?.data?.detail ?? 'Sinkronizimi deshtoi.')

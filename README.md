@@ -23,8 +23,8 @@ Platformë e menaxhimit të dokumenteve dhe analizës së procedurave të prokur
 
 ```bash
 # 1. Clone
-git clone https://github.com/hariskico/jurist-.git
-cd jurist-
+git clone https://github.com/BaicaKriza/Jurist-.git
+cd Jurist-
 
 # 2. Instalo dependencies (frontend + backend)
 npm install
@@ -36,6 +36,8 @@ cp .env.example backend/.env
 
 # 4. Seed admin user
 npm run seed
+# If login already existed with an old password during local testing:
+# RESET_ADMIN_PASSWORD=true npm run seed
 
 # 5. Ndiz projektin
 npm run dev
@@ -95,6 +97,7 @@ Variablat kryesore:
 | `DATABASE_URL` | `...@localhost:5432/jurist` | PostgreSQL connection string |
 | `SECRET_KEY` | dev key | JWT signing key |
 | `OPENAI_API_KEY` | (bosh) | Nëse mungon, analiza është mock |
+| `RESET_ADMIN_PASSWORD` | `false` | Local only: set `true` before `npm run seed` to repair the default admin password |
 | `VITE_BACKEND_PROXY_TARGET` | `http://127.0.0.1:8000` | Proxy target Vite |
 
 ## Ports
